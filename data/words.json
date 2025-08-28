@@ -1,0 +1,215 @@
+{
+  "palabras": [
+    {
+      "image": "casa.png",
+      "word": "casa",
+      "incomplete": "ca_a",
+      "missing": "s",
+      "options": ["s", "z", "x"]
+    },
+    {
+      "image": "perro.png",
+      "word": "perro",
+      "incomplete": "pe_ro",
+      "missing": "r",
+      "options": ["r", "l", "s"]
+    },
+    {
+      "image": "manzana.png",
+      "word": "manzana",
+      "incomplete": "man_ana",
+      "missing": "z",
+      "options": ["z", "s", "c"]
+    },
+    {
+      "image": "nube.png",
+      "word": "nube",
+      "incomplete": "nu_e",
+      "missing": "b",
+      "options": ["p", "b", "v"]
+    },
+    {
+      "image": "silla.png",
+      "word": "silla",
+      "incomplete": "si_la",
+      "missing": "l",
+      "options":  ["l", "r", "t"]
+    },
+    {
+      "image": "flor.png",
+      "word": "flor",
+      "incomplete": "flo_",
+      "missing": "r",
+      "options": ["r", "l", "n"]
+    },
+    {
+      "image": "gato.png",
+      "word": "gato",
+      "incomplete": "ga_o",
+      "missing": "t",
+      "options": ["t", "d", "p"]
+    },
+    {
+      "image": "sol.png",
+      "word": "sol",
+      "incomplete": "so_",
+      "missing": "l",
+      "options": ["l", "r", "n"]
+    },
+    {
+      "image": "zapato.png",
+      "word": "zapato",
+      "incomplete": "za_ato",
+      "missing": "p",
+      "options": ["p", "b", "v"]
+    },
+    {
+      "image": "nube.png",
+      "word": "nube",
+      "incomplete": "nu_e",
+      "missing": "b",
+      "options": ["b", "v", "d"]
+    }
+  ],
+  "reglas": [
+    {
+      "frase": "Antes de 'P' y 'B' se debe escribir 'M' y no 'N'",
+      "speak": "Antes de 'Pe' y 'Be' se debe escribir 'eme' y no 'ene'",
+      "ejemplos": [
+        {
+          "image": "campana.png",
+          "word": "campana",
+          "incomplete": "ca_pana",
+          "missing": "m",
+          "options": [ "m", "n"]
+        },
+        {
+          "image": "enfermera.png",
+          "word": "enfermera",
+          "incomplete": "e_fermera",
+          "missing": "n",
+          "options": [ "m", "n"]
+        },
+        {
+          "image": "campesino.png",
+          "word": "campesino",
+          "incomplete": "ca_pesino",
+          "missing": "m",
+          "options": [ "m", "n"]
+        },
+        {
+          "image": "trompeta.png",
+          "word": "trompeta",
+          "incomplete": "tro_peta",
+          "missing": "m",
+          "options": [ "m", "n"]
+        },
+        {
+          "image": "columpio.png",
+          "word": "columpio",
+          "incomplete": "colu_pio",
+          "missing": "m",
+          "options": [ "m", "n"]
+        },
+        {
+          "image": "timbre.png",
+          "word": "timbre",
+          "incomplete": "ti_bre",
+          "missing": "m",
+          "options": [ "m", "n"]
+        },
+        {
+          "image": "envase.png",
+          "word": "envase",
+          "incomplete": "e_vase",
+          "missing": "n",
+          "options": [ "m", "n"]
+        },
+        {
+          "image": "bomba.png",
+          "word": "bomba",
+          "incomplete": "bo_ba",
+          "missing": "m",
+          "options": [ "m", "n"]
+        },
+        {
+          "image": "empresa.png",
+          "word": "empresa",
+          "incomplete": "e_presa",
+          "missing": "m",
+          "options": [ "m", "n"]
+        }
+      ]
+    },
+    {
+      "frase": "Diferenciemos la 'B' y la 'V' en las palabras",
+      "speak": "Diferenciemos la 'Be' y la 'uve' en las palabras",
+      "ejemplos": [
+        {
+          "image": "icon.png",
+          "word": "visita",
+          "incomplete": "_isita",
+          "missing": "v",
+          "options": [ "v", "b"]
+        },
+        {
+          "image": "icon.png",
+          "word": "arbusto",
+          "incomplete": "ar_usto",
+          "missing": "b",
+          "options": [ "v", "b"]
+        },
+        {
+          "image": "icon.png",
+          "word": "avestruz",
+          "incomplete": "a_estruz",
+          "missing": "v",
+          "options": [ "v", "b"]
+        },
+        {
+          "image": "icon.png",
+          "word": "banana",
+          "incomplete": "_anana",
+          "missing": "b",
+          "options": [ "v", "b"]
+        },
+        {
+          "image": "icon.png",
+          "word": "vino",
+          "incomplete": "_ino",
+          "missing": "v",
+          "options": [ "v", "b"]
+        },
+        {
+          "image": "timbre.png",
+          "word": "timbre",
+          "incomplete": "tim_re",
+          "missing": "b",
+          "options": [ "v", "b"]
+        },
+        {
+          "image": "envase.png",
+          "word": "envase",
+          "incomplete": "en_ase",
+          "missing": "v",
+          "options": [ "v", "b"]
+        },
+        {
+          "image": "bomba.png",
+          "word": "bomba",
+          "incomplete": "bom_a",
+          "missing": "b",
+          "options": [ "v", "b"]
+        }, 
+        {
+          "image": "icon.png",
+          "word": "viejo",
+          "incomplete": "_iejo",
+          "missing": "v",
+          "options": [ "v", "b"]
+        }
+      ]
+    }
+  ]
+}
+

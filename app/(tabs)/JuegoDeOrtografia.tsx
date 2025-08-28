@@ -5,58 +5,49 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const imageMap: Record<string, any> = {
-  'campana.png': require('@/assets/images/campana.png'),
-  'enfermera.png': require('@/assets/images/enfermera.png'),
-  'campesino.png': require('@/assets/images/campesino.png'),
-  'columpio.png': require('@/assets/images/columpio.png'),
-  'timbre.png': require('@/assets/images/timbre.png'),
-  'envase.png': require('@/assets/images/envase.png'),
-  'bomba.png': require('@/assets/images/bomba.png'),
+  'casa.png': require('@/assets/images/casa.png'),
+  'perro.png': require('@/assets/images/perro.png'),
+  'gato.png': require('@/assets/images/gato.png'),
+  'flor.png': require('@/assets/images/flor.png'),
+  'mesa.png': require('@/assets/images/mesa.png'),
+  'silla.png': require('@/assets/images/silla.png'),
+  'sol.png': require('@/assets/images/sol.png'),
+  'zapato.png': require('@/assets/images/zapato.png'),
+  'manzana.png': require('@/assets/images/manzana.png'),
+  'nube.png': require('@/assets/images/nube.png'),
+  
 };
 
-function flattenExamples(reglas: any[]): any[] {
-  return reglas.flatMap(regla => regla.ejemplos.map((ejemplo: any) => ({
-    ...ejemplo,
-    frase: regla.frase,
-    speak: regla.speak
-  })));
-}
-
-export default function ExploreCard() {
-  const ejemplos = flattenExamples(words.reglas);
+export default function JuegoDeOrtografia() {
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [correcto, setCorrecto] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [score, setScore] = useState(0);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const [successSoundObject, setSuccessSoundObject] = useState<Audio.Sound | null>(null);
   const [errorSoundObject, setErrorSoundObject] = useState<Audio.Sound | null>(null);
   const router = useRouter();
 
-  const ejemplo = ejemplos[index];
+  const palabra = words.palabras[index];
 
   useEffect(() => {
     let successSoundInstance: Audio.Sound;
     let errorSoundInstance: Audio.Sound;
 
     async function loadSounds() {
-      try {
-        const { sound: loadedSuccessSound } = await Audio.Sound.createAsync(
-          require('@/assets/sounds/success.mp3')
-        );
-        const { sound: loadedErrorSound } = await Audio.Sound.createAsync(
-          require('@/assets/sounds/error.mp3')
-        );
-        setSuccessSoundObject(loadedSuccessSound);
-        setErrorSoundObject(loadedErrorSound);
-        successSoundInstance = loadedSuccessSound;
-        errorSoundInstance = loadedErrorSound;
-      } catch (e) {
-        console.log('Error cargando sonidos', e);
-      }
+      const { sound: loadedSuccessSound } = await Audio.Sound.createAsync(
+        require('@/assets/sounds/success.mp3')
+      );
+      const { sound: loadedErrorSound } = await Audio.Sound.createAsync(
+        require('@/assets/sounds/error.mp3')
+      );
+      setSuccessSoundObject(loadedSuccessSound);
+      setErrorSoundObject(loadedErrorSound);
+      successSoundInstance = loadedSuccessSound;
+      errorSoundInstance = loadedErrorSound;
     }
 
     loadSounds();
@@ -69,8 +60,8 @@ export default function ExploreCard() {
 
   // Decir la palabra automáticamente al iniciar cada ronda
   useEffect(() => {
-    if (ejemplo?.word) {
-      Speech.speak(ejemplo.word, {
+    if (palabra?.word) {
+      Speech.speak(palabra.word, {
         language: 'es-ES',
         rate: 0.8,
         pitch: 1.1,
@@ -79,29 +70,27 @@ export default function ExploreCard() {
   }, [index]);
 
   const handleSelect = async (opcion: string) => {
-    const letraCorrecta = ejemplo.word[ejemplo.incomplete.indexOf('_')];
+    const letraCorrecta = palabra.word[palabra.incomplete.indexOf('_')];
     const esCorrecto = opcion === letraCorrecta;
+    const missingLetterIndex = palabra.incomplete.indexOf('_');
+  
 
     setSelected(opcion);
     setCorrecto(esCorrecto);
     setFeedback(esCorrecto ? '¡Correcto! 🎉' : '¡Incorrecto! ❌');
-    try {
-      if (esCorrecto) {
-        if (successSoundObject) await successSoundObject.replayAsync();
-      } else {
-        if (errorSoundObject) await errorSoundObject.replayAsync();
-      }
-    } catch (e) {
-      // Si el sonido falla, igual continúa el flujo
-      console.log('Error reproduciendo sonido', e);
+    if (esCorrecto) {
+      if (successSoundObject) await successSoundObject.replayAsync();
+    } else {
+      if (errorSoundObject) await errorSoundObject.replayAsync();
     }
     if (esCorrecto) setScore((prev) => prev + 1);
 
     setTimeout(() => {
-      if (index + 1 < ejemplos.length) {
+      if (index + 1 < words.palabras.length) {
         setIndex((prev) => prev + 1);
       } else {
-        Alert.alert('¡Juego terminado!', `Tu puntaje: ${score + (esCorrecto ? 1 : 0)}/${ejemplos.length}`);
+        Alert.alert('¡Juego terminado!', `Tu puntaje: ${score + (esCorrecto ? 1 : 0)}/${words.palabras.length}`);
+        // reiniciar juego si deseas:
         setIndex(0);
         setScore(0);
       }
@@ -112,7 +101,7 @@ export default function ExploreCard() {
   };
 
   const handleSpeak = () => {
-    Speech.speak(ejemplo.word, {
+    Speech.speak(palabra.word, {
       language: 'es-ES',
       rate: 0.8,
       pitch: 1.1,
@@ -122,7 +111,7 @@ export default function ExploreCard() {
   const handleEndGame = () => {
     Alert.alert(
       'Juego terminado',
-      `Tu puntaje: ${score}/${ejemplos.length}\n¿Deseas reiniciar el juego?`,
+      `Tu puntaje: ${score}/${words.palabras.length}\n¿Deseas reiniciar el juego?`,
       [
         {
           text: 'Sí',
@@ -137,6 +126,7 @@ export default function ExploreCard() {
         {
           text: 'No',
           onPress: () => {
+            // Redirige a la raíz de las tabs, que es index.tsx
             router.replace('/(tabs)');
           },
           style: 'cancel',
@@ -145,41 +135,30 @@ export default function ExploreCard() {
     );
   };
 
-  const gradientColors = ['#fffde4', '#ffe680', '#ffb347'] as const;
+  // Puedes personalizar los colores del gradiente según la imagen si lo deseas.
+  // Aquí se usa un gradiente genérico claro a oscuro.
+  const gradientColors = ['#fffbe6', '#ffe082', '#ffb300'] as const;
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={styles.container}>
       <Text style={styles.score}>Puntaje: {score}</Text>
-      {/* Card para la frase */}
-      <View style={styles.fraseCard}>
-        <Text style={styles.reglaFrase}>{ejemplo.frase}</Text>
-        <TouchableOpacity style={styles.fraseSpeakIcon} onPress={() => {
-          Speech.speak(ejemplo.speak || ejemplo.frase, {
-            language: 'es-ES',
-            rate: 0.95,
-            pitch: 1.1,
-          });
-        }}>
-          <MaterialIcons name="volume-up" size={28} color="#FFA726" />
-        </TouchableOpacity>
-      </View>
-      {/* Card para la imagen y el icono */}
-      <View>
+      <View style={styles.card}>
         <LinearGradient
           colors={gradientColors}
           style={styles.gradientBackground}
           start={{ x: 0.5, y: 0.5 }}
           end={{ x: 0.5, y: 1 }}
         >
-          <Image source={imageMap[ejemplo.image]} style={styles.image} resizeMode="contain" />
+          <Image source={imageMap[palabra.image]} style={styles.image} resizeMode="contain" />
           <TouchableOpacity style={styles.speakIcon} onPress={handleSpeak}>
             <MaterialIcons name="volume-up" size={32} color="#FFA726" />
           </TouchableOpacity>
         </LinearGradient>
       </View>
-      <Text style={styles.incomplete}>{ejemplo.incomplete}</Text>
+      <Text style={styles.incomplete}>{palabra.incomplete}</Text>
+
       <View style={styles.options}>
-        {ejemplo.options.map((letra: string, i: number) => {
+        {palabra.options.map((letra, i) => {
           let backgroundColor = '#87CEFA';
           if (selected === letra) backgroundColor = correcto ? 'green' : 'red';
 
@@ -195,7 +174,9 @@ export default function ExploreCard() {
           );
         })}
       </View>
+
       {feedback && <Text style={correcto ? styles.correctText : styles.incorrectText}>{feedback}</Text>}
+
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={styles.resetButton}
@@ -216,80 +197,32 @@ export default function ExploreCard() {
           <Text style={styles.endButtonText}>Terminar juego</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 40,
-    paddingTop: 10,
-  },
+  container: { padding: 20, alignItems: 'center' },
+  score: { fontSize: 22, fontWeight: 'bold', marginTop:20, marginBottom: 10 },
   card: {
-    margin: 20,
-    padding: 24,
-    borderRadius: 16,
-    backgroundColor: '#fffbe6',
     borderWidth: 1,
-    borderColor: '#ffd54f',
-    alignItems: 'center',
-    elevation: 2,
+    borderColor: '#ccc',
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 20,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     position: 'relative',
-  },
-  frase: {
-    fontSize: 22,
-    color: '#333',
-    marginBottom: 18,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  speakButton: {
-    backgroundColor: '#FFD700',
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  speakButtonText: {
-    color: '#333',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  reglaFrase: {
-    fontSize: 18,
-    color: '#333',
-    marginBottom: 10,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  gameContainer: {
-    alignItems: 'center',
-    marginBottom: 10,
   },
   gradientBackground: {
     width: 250,
     height: 250,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 20,
-    overflow: 'hidden',
     position: 'relative',
-  },
-  speakIcon: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: '#fffbe6',
-    borderRadius: 20,
-    padding: 6,
-    elevation: 2,
   },
   image: { width: 200, height: 200 },
   incomplete: { fontSize: 36, marginBottom: 20 },
@@ -302,7 +235,15 @@ const styles = StyleSheet.create({
   buttonText: { fontSize: 24, color: '#fff' },
   correctText: { marginTop: 20, fontSize: 20, color: 'green' },
   incorrectText: { marginTop: 20, fontSize: 20, color: 'red' },
-  score: { fontSize: 22, fontWeight: 'bold', alignItems: 'center', textAlign: 'center' },
+  speakIcon: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: '#fffbe6',
+    borderRadius: 20,
+    padding: 6,
+    elevation: 2,
+  },
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -326,6 +267,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+    
   },
   endButton: {
     flex: 1,
@@ -341,31 +283,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
-  },
-  fraseCard: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 10,
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: '#fffbe6',
-    borderWidth: 1,
-    borderColor: '#ffd54f',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    position: 'relative',
-  },
-  fraseSpeakIcon: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: '#fffbe6',
-    borderRadius: 20,
-    padding: 6,
-    elevation: 2,
   },
 });
