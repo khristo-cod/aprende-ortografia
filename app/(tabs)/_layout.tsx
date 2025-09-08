@@ -1,4 +1,4 @@
-// app/(tabs)/_layout.tsx - ICONOS VÁLIDOS Y NUEVA PANTALLA
+// app/(tabs)/_layout.tsx - ACTUALIZADO CON NUEVA PANTALLA
 
 import { HapticTab } from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';

@@ -1,9 +1,9 @@
-// src/contexts/AuthContext.tsx - Sistema multi-docente CORREGIDO
+// src/contexts/AuthContext.tsx - VERSIÓN CORREGIDA
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { API_BASE_URL, makeApiRequest } from '../config/api';
+import { makeApiRequest } from '../config/api';
 
-// Tipos base
+// Tipos base existentes (mantener todos los tipos que ya tienes)
 interface User {
   id: number;
   name: string;
@@ -40,22 +40,6 @@ interface Student {
   teacher_name?: string;
 }
 
-interface ParentChildRelation {
-  parent_id: number;
-  child_id: number;
-  relationship_type: string;
-  is_primary: boolean;
-  phone?: string;
-}
-
-interface TeacherDashboard {
-  total_classrooms: number;
-  total_students: number;
-  recent_activity: number;
-  words_created: number;
-}
-
-// Interfaces existentes
 interface WordEntry {
   id: string;
   word: string;
@@ -90,6 +74,13 @@ interface TitanicStats {
   byCategory: { [key: string]: number };
 }
 
+interface TeacherDashboard {
+  total_classrooms: number;
+  total_students: number;
+  recent_activity: number;
+  words_created: number;
+}
+
 interface WordFilters {
   category?: string;
   difficulty?: number;
@@ -103,26 +94,26 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  API_BASE_URL: string; // 🆕 Agregar API_BASE_URL al contexto
-
-  searchStudent: (email: string) => Promise<{ success: boolean; student?: any; error?: string }>;
-  getAvailableClassrooms: () => Promise<{ success: boolean; classrooms?: any[]; error?: string }>;
-  studentSelfEnroll: (classroomId: number) => Promise<{ success: boolean; message?: string; error?: string }>;
   
-  // 🆕 NUEVO: Verificar estado de inscripción del estudiante
-  checkStudentEnrollmentStatus: () => Promise<{ success: boolean; isEnrolled?: boolean; classroom?: any; error?: string }>;
-
-  // Autenticación
+  // 🆕 CORREGIR - No devolver API_BASE_URL aquí, usar directamente del config
+  
+  // Métodos de autenticación
   login: (email: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   register: (name: string, email: string, password: string, role: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => Promise<void>;
   
-  // Juegos existentes
+  // Métodos de juegos
   saveGameProgress: (gameData: any) => Promise<{ success: boolean; data?: any; error?: string }>;
   getGameProgress: (userId?: number) => Promise<{ success: boolean; progress?: any[]; stats?: any; error?: string }>;
   getGameConfig: (gameType: string) => Promise<{ success: boolean; configs?: any[]; error?: string }>;
   
-  // CRUD Titanic básico
+  // 🆕 NUEVOS MÉTODOS PARA INSCRIPCIÓN DE ESTUDIANTES
+  searchStudent: (email: string) => Promise<{ success: boolean; student?: any; error?: string }>;
+  getAvailableClassrooms: () => Promise<{ success: boolean; classrooms?: any[]; error?: string }>;
+  studentSelfEnroll: (classroomId: number) => Promise<{ success: boolean; message?: string; error?: string }>;
+  checkStudentEnrollmentStatus: () => Promise<{ success: boolean; isEnrolled?: boolean; classroom?: any; error?: string }>;
+  
+  // CRUD Titanic
   getTitanicWords: (filters?: WordFilters) => Promise<{ success: boolean; words?: WordEntry[]; error?: string }>;
   getTitanicStats: () => Promise<{ success: boolean; stats?: TitanicStats; error?: string }>;
   createTitanicWord: (wordData: WordInput) => Promise<{ success: boolean; word?: WordEntry; error?: string }>;
@@ -130,8 +121,6 @@ interface AuthContextType {
   deleteTitanicWord: (id: string) => Promise<{ success: boolean; error?: string }>;
   toggleTitanicWordStatus: (id: string) => Promise<{ success: boolean; word?: WordEntry; error?: string }>;
   getActiveTitanicWords: (difficulty: number) => Promise<{ success: boolean; words?: { word: string; hint: string; category: string; }[]; error?: string }>;
-  
-  // NUEVOS MÉTODOS PARA SISTEMA MULTI-DOCENTE
   
   // Gestión de aulas
   createClassroom: (classroomData: {
@@ -143,30 +132,9 @@ interface AuthContextType {
   }) => Promise<{ success: boolean; classroom_id?: number; error?: string }>;
   
   getMyClassrooms: () => Promise<{ success: boolean; classrooms?: Classroom[]; error?: string }>;
-  
-  // Gestión de estudiantes
   enrollStudent: (classroomId: number, studentId: number) => Promise<{ success: boolean; error?: string }>;
   getClassroomStudents: (classroomId: number) => Promise<{ success: boolean; students?: Student[]; error?: string }>;
-  
-  // Gestión de representantes
-  createParentChildRelation: (
-    studentId: number, 
-    parentId: number, 
-    relationData: {
-      relationship_type?: string;
-      is_primary?: boolean;
-      phone?: string;
-    }
-  ) => Promise<{ success: boolean; error?: string }>;
-  
   getMyChildren: () => Promise<{ success: boolean; children?: Student[]; error?: string }>;
-  
-  // Palabras con alcance
-  getAvailableWords: (classroomId?: number) => Promise<{ success: boolean; words?: WordEntry[]; error?: string }>;
-  createScopedWord: (wordData: WordInput) => Promise<{ success: boolean; word_id?: number; error?: string }>;
-  
-  // Reportes
-  getClassroomProgressReport: (classroomId: number) => Promise<{ success: boolean; report?: any[]; error?: string }>;
   getTeacherDashboard: () => Promise<{ success: boolean; dashboard?: TeacherDashboard; error?: string }>;
   
   // Estados útiles
@@ -194,106 +162,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuthState();
   }, []);
 
-  // 🆕 NUEVO: Verificar estado de inscripción del estudiante
-  const checkStudentEnrollmentStatus = async () => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
-    try {
-      const data = await makeApiRequest<{
-        success: boolean;
-        isEnrolled?: boolean;
-        classroom?: any;
-        error?: string;
-      }>('/student/enrollment-status', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      return data;
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Error de conexión' 
-      };
-    }
-  };
-
-  // 🔍 BUSCAR ESTUDIANTE POR EMAIL
-  const searchStudent = async (email: string) => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
-    try {
-      const data = await makeApiRequest<{
-        success: boolean;
-        student?: any;
-        error?: string;
-      }>('/users/search-student', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      return data;
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Error de conexión' 
-      };
-    }
-  };
-
-  // 🎓 OBTENER AULAS DISPONIBLES (para estudiantes)
-  const getAvailableClassrooms = async () => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
-    try {
-      const data = await makeApiRequest<{
-        success: boolean;
-        classrooms?: any[];
-        error?: string;
-      }>('/classrooms/available', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      return data;
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Error de conexión' 
-      };
-    }
-  };
-
-  // 📝 ESTUDIANTE SE INSCRIBE EN AULA
-  const studentSelfEnroll = async (classroomId: number) => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
-    try {
-      const data = await makeApiRequest<{
-        success: boolean;
-        message?: string;
-        error?: string;
-      }>(`/student/enroll/${classroomId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      return data;
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Error de conexión' 
-      };
-    }
-  };
-
   const checkAuthState = async (): Promise<void> => {
     try {
       console.log('🔍 Verificando estado de autenticación...');
@@ -302,7 +170,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (savedToken) {
         console.log('🔑 Token encontrado, verificando con servidor...');
         
-        // 🆕 USAR LA NUEVA FUNCIÓN makeApiRequest
         const data = await makeApiRequest<{ success: boolean; user: User }>('/auth/verify', {
           headers: {
             'Authorization': `Bearer ${savedToken}`,
@@ -408,6 +275,108 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // 🆕 NUEVOS MÉTODOS PARA INSCRIPCIÓN
+
+  // Verificar estado de inscripción del estudiante
+  const checkStudentEnrollmentStatus = async () => {
+    if (!token) return { success: false, error: 'No autenticado' };
+
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        isEnrolled?: boolean;
+        classroom?: any;
+        error?: string;
+      }>('/student/enrollment-status', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
+
+  // Buscar estudiante por email (para docentes)
+  const searchStudent = async (email: string) => {
+    if (!token) return { success: false, error: 'No autenticado' };
+
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        student?: any;
+        error?: string;
+      }>('/users/search-student', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
+
+  // Obtener aulas disponibles (para estudiantes)
+  const getAvailableClassrooms = async () => {
+    if (!token) return { success: false, error: 'No autenticado' };
+
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        classrooms?: any[];
+        error?: string;
+      }>('/classrooms/available', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
+
+  // Estudiante se inscribe en aula
+  const studentSelfEnroll = async (classroomId: number) => {
+    if (!token) return { success: false, error: 'No autenticado' };
+
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        message?: string;
+        error?: string;
+      }>(`/student/enroll/${classroomId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
+
   // 🆕 SAVE GAME PROGRESS MEJORADO
   const saveGameProgress = async (gameData: any) => {
     if (!token || !user) return { success: false, error: 'No autenticado' };
@@ -477,7 +446,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Métodos CRUD Titanic básicos (usando makeApiRequest)
+  // Métodos CRUD Titanic (mantener los existentes)
   const getTitanicWords = async (filters?: WordFilters) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
@@ -575,7 +544,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // 🆕 GET TITANIC WORDS MEJORADO
   const getActiveTitanicWords = async (difficulty: number) => {
     try {
       console.log('🎮 Obteniendo palabras del Titanic, dificultad:', difficulty);
@@ -605,8 +573,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // NUEVOS MÉTODOS PARA SISTEMA MULTI-DOCENTE (usando makeApiRequest)
-
+  // Métodos de gestión de aulas (mantener los existentes)
   const createClassroom = async (classroomData: {
     name: string;
     grade_level: string;
@@ -673,26 +640,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const createParentChildRelation = async (
-    studentId: number, 
-    parentId: number, 
-    relationData: { relationship_type?: string; is_primary?: boolean; phone?: string; }
-  ) => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
-    try {
-      await makeApiRequest(`/students/${studentId}/parents`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ parent_id: parentId, ...relationData }),
-      });
-
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: 'Error de conexión' };
-    }
-  };
-
   const getMyChildren = async () => {
     if (!token) return { success: false, error: 'No autenticado' };
 
@@ -702,51 +649,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       return { success: true, children: data.children };
-    } catch (error) {
-      return { success: false, error: 'Error de conexión' };
-    }
-  };
-
-  const getAvailableWords = async (classroomId?: number) => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
-    try {
-      const queryParams = classroomId ? `?classroom_id=${classroomId}` : '';
-      const data = await makeApiRequest<{ success: boolean; words: WordEntry[]; error?: string }>(`/titanic/words/available${queryParams}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      return { success: true, words: data.words };
-    } catch (error) {
-      return { success: false, error: 'Error de conexión' };
-    }
-  };
-
-  const createScopedWord = async (wordData: WordInput) => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
-    try {
-      const data = await makeApiRequest<{ success: boolean; word_id: number; error?: string }>('/titanic/words/scoped', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(wordData),
-      });
-
-      return { success: true, word_id: data.word_id };
-    } catch (error) {
-      return { success: false, error: 'Error de conexión' };
-    }
-  };
-
-  const getClassroomProgressReport = async (classroomId: number) => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
-    try {
-      const data = await makeApiRequest<{ success: boolean; report: any[]; error?: string }>(`/reports/classroom/${classroomId}/progress`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      return { success: true, report: data.report };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -770,17 +672,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     token,
     loading,
-    API_BASE_URL, // 🆕 Exponer API_BASE_URL
     login,
     register,
     logout,
     saveGameProgress,
     getGameProgress,
     getGameConfig,
+    
+    // 🆕 NUEVOS MÉTODOS
     searchStudent,
     getAvailableClassrooms,
     studentSelfEnroll,
-    checkStudentEnrollmentStatus, // 🆕 NUEVO método
+    checkStudentEnrollmentStatus,
+    
     // CRUD Titanic
     getTitanicWords,
     getTitanicStats,
@@ -795,11 +699,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     getMyClassrooms,
     enrollStudent,
     getClassroomStudents,
-    createParentChildRelation,
     getMyChildren,
-    getAvailableWords,
-    createScopedWord,
-    getClassroomProgressReport,
     getTeacherDashboard,
     
     // Estados útiles
@@ -827,6 +727,6 @@ export const useAuth = (): AuthContextType => {
 };
 
 export type {
-  Classroom, ParentChildRelation, Student, TeacherDashboard, TitanicStats, User,
+  Classroom, Student, TeacherDashboard, TitanicStats, User,
   WordEntry, WordFilters, WordInput
 };

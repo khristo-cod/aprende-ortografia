@@ -1,4 +1,4 @@
-// app/(tabs)/index.tsx - HOMESCREEN CON SELECCIÓN DE AULA
+// app/(tabs)/index.tsx - ACTUALIZADO CON VERIFICACIÓN DE INSCRIPCIÓN
 
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
@@ -19,9 +19,15 @@ function CardButton({ onPress, children }: { onPress: () => void; children: Reac
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, logout, isAuthenticated, saveGameProgress, checkStudentEnrollmentStatus } = useAuth();
+  const { 
+    user, 
+    logout, 
+    isAuthenticated, 
+    saveGameProgress, 
+    checkStudentEnrollmentStatus 
+  } = useAuth();
 
-  // 🆕 Verificar inscripción del estudiante
+  // 🆕 Verificar inscripción del estudiante al cargar la pantalla
   useEffect(() => {
     if (user?.role === 'nino') {
       checkStudentEnrollment();
@@ -30,9 +36,11 @@ export default function HomeScreen() {
 
   const checkStudentEnrollment = async () => {
     try {
+      console.log('🔍 Verificando inscripción del estudiante...');
       const result = await checkStudentEnrollmentStatus();
       
       if (result.success && !result.isEnrolled) {
+        console.log('📝 Estudiante no inscrito, mostrando opción de selección');
         // Mostrar opción para seleccionar aula
         Alert.alert(
           'Seleccionar Aula 🏫',
@@ -41,13 +49,20 @@ export default function HomeScreen() {
             { text: 'Más tarde', style: 'cancel' },
             {
               text: 'Seleccionar Aula',
-              onPress: () => router.push('/(tabs)/student-classroom-selection' as any)
+              onPress: () => {
+                console.log('🚀 Navegando a selección de aula');
+                router.push('/(tabs)/student-classroom-selection' as any);
+              }
             }
           ]
         );
+      } else if (result.success && result.isEnrolled) {
+        console.log('✅ Estudiante ya inscrito en:', result.classroom?.name);
+      } else {
+        console.log('⚠️ Error verificando inscripción:', result.error);
       }
     } catch (error) {
-      console.log('No se pudo verificar inscripción:', error);
+      console.log('🚨 Error al verificar inscripción:', error);
     }
   };
   
@@ -196,7 +211,10 @@ export default function HomeScreen() {
 
       {/* 🆕 BOTÓN PARA SELECCIONAR AULA (solo para estudiantes) */}
       {user?.role === 'nino' && (
-        <CardButton onPress={() => router.push('/(tabs)/student-classroom-selection' as any)}>
+        <CardButton onPress={() => {
+          console.log('🏫 Navegando a selección de aula desde botón');
+          router.push('/(tabs)/student-classroom-selection' as any);
+        }}>
           <ThemedView style={[styles.stepContainer, styles.classroomContainer]}>
             <ThemedText type="subtitle" style={styles.classroomTitle}>🏫 Mi Aula</ThemedText>
             <Text style={styles.classroomDescription}>
@@ -307,18 +325,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#E3F2FD',
     color: '#1565C0',
   },
-  // ESTILOS PARA EL PANEL DE ADMINISTRACIÓN
-  adminContainer: {
-    backgroundColor: '#FFF3E0',
-  },
-  adminTitle: {
-    backgroundColor: '#FFF3E0',
-    color: '#F57C00',
-  },
-  adminDescription: {
-    backgroundColor: '#FFF3E0',
-    color: '#EF6C00',
-  },
   userInfoCard: {
     backgroundColor: '#E8F5E8',
     borderRadius: 16,
@@ -426,4 +432,4 @@ const styles = StyleSheet.create({
     color: '#666',
     fontFamily: 'monospace',
   },
-  });
+});
