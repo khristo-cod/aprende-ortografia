@@ -1,4 +1,4 @@
-// 🎓 CREAR NUEVA PANTALLA: app/(tabs)/student-classroom-selection.tsx
+// app/(tabs)/student-classroom-selection.tsx - CORREGIDO
 
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,7 +29,7 @@ interface AvailableClassroom {
 
 export default function StudentClassroomSelection() {
   const router = useRouter();
-  const { user, token, isNino } = useAuth();
+  const { user, isNino, getAvailableClassrooms, studentSelfEnroll } = useAuth();
   const [classrooms, setClassrooms] = useState<AvailableClassroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,19 +47,12 @@ export default function StudentClassroomSelection() {
   const loadAvailableClassrooms = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/classrooms/available`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
+      const result = await getAvailableClassrooms();
       
-      if (data.success) {
-        setClassrooms(data.classrooms);
+      if (result.success && result.classrooms) {
+        setClassrooms(result.classrooms);
       } else {
-        Alert.alert('Error', data.error || 'No se pudieron cargar las aulas');
+        Alert.alert('Error', result.error || 'No se pudieron cargar las aulas');
       }
     } catch (error) {
       console.error('Error cargando aulas:', error);
@@ -86,20 +79,12 @@ export default function StudentClassroomSelection() {
           onPress: async () => {
             setEnrolling(classroom.id);
             try {
-              const response = await fetch(`${API_BASE_URL}/student/enroll/${classroom.id}`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-              });
-
-              const data = await response.json();
+              const result = await studentSelfEnroll(classroom.id);
               
-              if (data.success) {
+              if (result.success) {
                 Alert.alert(
                   '¡Inscripción Exitosa! 🎉',
-                  data.message,
+                  result.message || 'Te has inscrito correctamente',
                   [
                     {
                       text: 'Continuar',
@@ -110,7 +95,7 @@ export default function StudentClassroomSelection() {
                   ]
                 );
               } else {
-                Alert.alert('Error', data.error || 'No se pudo completar la inscripción');
+                Alert.alert('Error', result.error || 'No se pudo completar la inscripción');
               }
             } catch (error) {
               console.error('Error en inscripción:', error);

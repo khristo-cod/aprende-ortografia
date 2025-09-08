@@ -731,15 +731,60 @@ app.post('/api/student/enroll/:classroomId', authenticateToken, async (req, res)
       return res.status(400).json({ error: 'El aula está llena' });
     }
 
-    // Verificar si ya está inscrito
-    const existingEnrollment = await getQuery(`
-      SELECT * FROM student_enrollments 
-      WHERE student_id = ? AND status = 'active'
+   // Verificar si un estudiante está inscrito en alguna aula
+app.get('/api/student/enrollment-status', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'nino') {
+      return res.status(403).json({ error: 'Solo estudiantes pueden verificar su inscripción' });
+    }
+
+    // Buscar si el estudiante está inscrito en alguna aula
+    const enrollment = await getQuery(`
+      SELECT 
+        se.id,
+        se.status,
+        se.enrollment_date,
+        c.id as classroom_id,
+        c.name as classroom_name,
+        c.grade_level,
+        c.section,
+        c.school_year,
+        u.name as teacher_name,
+        u.email as teacher_email
+      FROM student_enrollments se
+      JOIN classrooms c ON se.classroom_id = c.id
+      JOIN users u ON c.teacher_id = u.id
+      WHERE se.student_id = ? AND se.status = 'active' AND c.active = 1
+      LIMIT 1
     `, [req.user.id]);
 
-    if (existingEnrollment) {
-      return res.status(400).json({ error: 'Ya estás inscrito en un aula' });
+    if (enrollment) {
+      res.json({
+        success: true,
+        isEnrolled: true,
+        classroom: {
+          id: enrollment.classroom_id,
+          name: enrollment.classroom_name,
+          grade_level: enrollment.grade_level,
+          section: enrollment.section,
+          school_year: enrollment.school_year,
+          teacher_name: enrollment.teacher_name,
+          teacher_email: enrollment.teacher_email,
+          enrollment_date: enrollment.enrollment_date
+        }
+      });
+    } else {
+      res.json({
+        success: true,
+        isEnrolled: false,
+        message: 'El estudiante no está inscrito en ninguna aula'
+      });
     }
+  } catch (error) {
+    console.error('Error verificando inscripción:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
     // Inscribir al estudiante
     await runQuery(`

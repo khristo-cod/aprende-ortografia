@@ -1,9 +1,11 @@
-// app/(tabs)/index.tsx - HOMESCREEN CON TITANIC CORREGIDO
+// app/(tabs)/index.tsx - HOMESCREEN CON SELECCIÓN DE AULA
+
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -17,8 +19,37 @@ function CardButton({ onPress, children }: { onPress: () => void; children: Reac
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, logout, isAuthenticated, saveGameProgress } = useAuth();
+  const { user, logout, isAuthenticated, saveGameProgress, checkStudentEnrollmentStatus } = useAuth();
 
+  // 🆕 Verificar inscripción del estudiante
+  useEffect(() => {
+    if (user?.role === 'nino') {
+      checkStudentEnrollment();
+    }
+  }, [user]);
+
+  const checkStudentEnrollment = async () => {
+    try {
+      const result = await checkStudentEnrollmentStatus();
+      
+      if (result.success && !result.isEnrolled) {
+        // Mostrar opción para seleccionar aula
+        Alert.alert(
+          'Seleccionar Aula 🏫',
+          'Para acceder a todas las funciones, necesitas inscribirte en un aula.',
+          [
+            { text: 'Más tarde', style: 'cancel' },
+            {
+              text: 'Seleccionar Aula',
+              onPress: () => router.push('/(tabs)/student-classroom-selection' as any)
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.log('No se pudo verificar inscripción:', error);
+    }
+  };
   
   const irAlJuego = async () => {
     if (isAuthenticated) {
@@ -163,6 +194,18 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {/* 🆕 BOTÓN PARA SELECCIONAR AULA (solo para estudiantes) */}
+      {user?.role === 'nino' && (
+        <CardButton onPress={() => router.push('/(tabs)/student-classroom-selection' as any)}>
+          <ThemedView style={[styles.stepContainer, styles.classroomContainer]}>
+            <ThemedText type="subtitle" style={styles.classroomTitle}>🏫 Mi Aula</ThemedText>
+            <Text style={styles.classroomDescription}>
+              "Inscríbete en un aula para acceder a todas las funciones" 📚👨‍🏫
+            </Text>
+          </ThemedView>
+        </CardButton>
+      )}
+
       <CardButton onPress={irAlJuego}>
         <ThemedView style={styles.stepContainer}>
           <ThemedText style={styles.stepConta} type="subtitle">Jugar ahora</ThemedText>
@@ -240,7 +283,19 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
   },
-  // NUEVO: Estilos para el Titanic
+  // 🆕 ESTILOS PARA EL AULA
+  classroomContainer: {
+    backgroundColor: '#E8F5E8',
+  },
+  classroomTitle: {
+    backgroundColor: '#E8F5E8',
+    color: '#4CAF50',
+  },
+  classroomDescription: {
+    backgroundColor: '#E8F5E8',
+    color: '#2E7D32',
+  },
+  // ESTILOS PARA EL TITANIC
   titanicContainer: {
     backgroundColor: '#E3F2FD',
   },
@@ -252,7 +307,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E3F2FD',
     color: '#1565C0',
   },
-  // NUEVO: Estilos para el panel de administración
+  // ESTILOS PARA EL PANEL DE ADMINISTRACIÓN
   adminContainer: {
     backgroundColor: '#FFF3E0',
   },
@@ -371,4 +426,4 @@ const styles = StyleSheet.create({
     color: '#666',
     fontFamily: 'monospace',
   },
-});
+  });

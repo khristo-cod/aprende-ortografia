@@ -1,4 +1,4 @@
-// 🔧 app/(tabs)/_layout.tsx - ICONOS VÁLIDOS QUE SÍ EXISTEN
+// app/(tabs)/_layout.tsx - ICONOS VÁLIDOS Y NUEVA PANTALLA
 
 import { HapticTab } from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';
@@ -117,10 +117,25 @@ export default function TabLayout() {
           }}
         />
 
+        {/* 🆕 NUEVA PANTALLA PARA ESTUDIANTES */}
         <Tabs.Screen
           name="student-classroom-selection"
           options={{
             href: null, // Oculta del tab bar, accesible por navegación
+          }}
+        />
+
+        <Tabs.Screen
+          name="classroom-progress"
+          options={{
+            href: null,
+          }}
+        />
+
+        <Tabs.Screen
+          name="child-progress"
+          options={{
+            href: null,
           }}
         />
 

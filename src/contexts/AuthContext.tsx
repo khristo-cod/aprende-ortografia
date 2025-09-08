@@ -1,4 +1,4 @@
-// src/contexts/AuthContext.tsx - Sistema multi-docente
+// src/contexts/AuthContext.tsx - Sistema multi-docente CORREGIDO
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { API_BASE_URL, makeApiRequest } from '../config/api';
@@ -103,10 +103,14 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
+  API_BASE_URL: string; // 🆕 Agregar API_BASE_URL al contexto
 
   searchStudent: (email: string) => Promise<{ success: boolean; student?: any; error?: string }>;
   getAvailableClassrooms: () => Promise<{ success: boolean; classrooms?: any[]; error?: string }>;
   studentSelfEnroll: (classroomId: number) => Promise<{ success: boolean; message?: string; error?: string }>;
+  
+  // 🆕 NUEVO: Verificar estado de inscripción del estudiante
+  checkStudentEnrollmentStatus: () => Promise<{ success: boolean; isEnrolled?: boolean; classroom?: any; error?: string }>;
 
   // Autenticación
   login: (email: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
@@ -180,8 +184,6 @@ interface AuthProviderProps {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-//const API_BASE_URL = 'http://192.168.1.4:3001/api';
-
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -192,80 +194,105 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuthState();
   }, []);
 
+  // 🆕 NUEVO: Verificar estado de inscripción del estudiante
+  const checkStudentEnrollmentStatus = async () => {
+    if (!token) return { success: false, error: 'No autenticado' };
+
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        isEnrolled?: boolean;
+        classroom?: any;
+        error?: string;
+      }>('/student/enrollment-status', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
+
   // 🔍 BUSCAR ESTUDIANTE POR EMAIL
-const searchStudent = async (email: string) => {
-  if (!token) return { success: false, error: 'No autenticado' };
+  const searchStudent = async (email: string) => {
+    if (!token) return { success: false, error: 'No autenticado' };
 
-  try {
-    const data = await makeApiRequest<{
-      success: boolean;
-      student?: any;
-      error?: string;
-    }>('/users/search-student', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ email }),
-    });
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        student?: any;
+        error?: string;
+      }>('/users/search-student', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email }),
+      });
 
-    return data;
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error de conexión' 
-    };
-  }
-};
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
 
-// 🎓 OBTENER AULAS DISPONIBLES (para estudiantes)
-const getAvailableClassrooms = async () => {
-  if (!token) return { success: false, error: 'No autenticado' };
+  // 🎓 OBTENER AULAS DISPONIBLES (para estudiantes)
+  const getAvailableClassrooms = async () => {
+    if (!token) return { success: false, error: 'No autenticado' };
 
-  try {
-    const data = await makeApiRequest<{
-      success: boolean;
-      classrooms?: any[];
-      error?: string;
-    }>('/classrooms/available', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        classrooms?: any[];
+        error?: string;
+      }>('/classrooms/available', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-    return data;
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error de conexión' 
-    };
-  }
-};
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
 
-// 📝 ESTUDIANTE SE INSCRIBE EN AULA
-const studentSelfEnroll = async (classroomId: number) => {
-  if (!token) return { success: false, error: 'No autenticado' };
+  // 📝 ESTUDIANTE SE INSCRIBE EN AULA
+  const studentSelfEnroll = async (classroomId: number) => {
+    if (!token) return { success: false, error: 'No autenticado' };
 
-  try {
-    const data = await makeApiRequest<{
-      success: boolean;
-      message?: string;
-      error?: string;
-    }>(`/student/enroll/${classroomId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        message?: string;
+        error?: string;
+      }>(`/student/enroll/${classroomId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-    return data;
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error de conexión' 
-    };
-  }
-};
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
 
   const checkAuthState = async (): Promise<void> => {
     try {
@@ -301,7 +328,7 @@ const studentSelfEnroll = async (classroomId: number) => {
     }
   };
 
-    // 🆕 LOGIN MEJORADO
+  // 🆕 LOGIN MEJORADO
   const login = async (email: string, password: string) => {
     try {
       console.log('🔐 Intentando login para:', email);
@@ -335,7 +362,7 @@ const studentSelfEnroll = async (classroomId: number) => {
     }
   };
 
-   // 🆕 REGISTER MEJORADO
+  // 🆕 REGISTER MEJORADO
   const register = async (name: string, email: string, password: string, role: string) => {
     try {
       console.log('📝 Intentando registro para:', email, 'como', role);
@@ -412,19 +439,15 @@ const studentSelfEnroll = async (classroomId: number) => {
 
     try {
       const targetUserId = userId || user?.id;
-      const url = userId ? 
-        `${API_BASE_URL}/games/progress/${targetUserId}` : 
-        `${API_BASE_URL}/games/progress`;
-        
-      const response = await fetch(url, {
+      const endpoint = userId ? `/games/progress/${targetUserId}` : `/games/progress`;
+      
+      const data = await makeApiRequest(endpoint, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
         },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, ...data } : { success: false, error: data.error };
+      return { success: true, data };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -432,21 +455,29 @@ const studentSelfEnroll = async (classroomId: number) => {
 
   const getGameConfig = async (gameType: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/games/config/${gameType}`, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
+      const data = await makeApiRequest<{
+        success: boolean;
+        configs?: any[];
+        error?: string;
+      }>(`/games/config/${gameType}`, {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`,
+        } : {},
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, ...data } : { success: false, error: data.error };
+      return {
+        success: true,
+        configs: data.configs
+      };
     } catch (error) {
-      return { success: false, error: 'Error de conexión' };
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión'
+      };
     }
   };
 
-  // Métodos CRUD Titanic básicos (mantenidos)
+  // Métodos CRUD Titanic básicos (usando makeApiRequest)
   const getTitanicWords = async (filters?: WordFilters) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
@@ -457,13 +488,12 @@ const studentSelfEnroll = async (classroomId: number) => {
       if (filters?.active !== undefined) queryParams.append('active', filters.active.toString());
       if (filters?.search) queryParams.append('search', filters.search);
 
-      const url = `${API_BASE_URL}/titanic/words${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const endpoint = `/titanic/words${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const data = await makeApiRequest<{ success: boolean; words: WordEntry[]; error?: string }>(endpoint, {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, words: data.words } : { success: false, error: data.error };
+      return { success: true, words: data.words };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -473,12 +503,11 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/titanic/stats`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const data = await makeApiRequest<{ success: boolean; stats: TitanicStats; error?: string }>('/titanic/stats', {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, stats: data.stats } : { success: false, error: data.error };
+      return { success: true, stats: data.stats };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -488,14 +517,13 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/titanic/words`, {
+      const data = await makeApiRequest<{ success: boolean; word: WordEntry; error?: string }>('/titanic/words', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(wordData),
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, word: data.word } : { success: false, error: data.error };
+      return { success: true, word: data.word };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -505,14 +533,13 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/titanic/words/${id}`, {
+      const data = await makeApiRequest<{ success: boolean; word: WordEntry; error?: string }>(`/titanic/words/${id}`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(wordData),
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, word: data.word } : { success: false, error: data.error };
+      return { success: true, word: data.word };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -522,13 +549,12 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/titanic/words/${id}`, {
+      await makeApiRequest(`/titanic/words/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true } : { success: false, error: data.error };
+      return { success: true };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -538,19 +564,18 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/titanic/words/${id}/toggle`, {
+      const data = await makeApiRequest<{ success: boolean; word: WordEntry; error?: string }>(`/titanic/words/${id}/toggle`, {
         method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, word: data.word } : { success: false, error: data.error };
+      return { success: true, word: data.word };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
   };
 
-   // 🆕 GET TITANIC WORDS MEJORADO
+  // 🆕 GET TITANIC WORDS MEJORADO
   const getActiveTitanicWords = async (difficulty: number) => {
     try {
       console.log('🎮 Obteniendo palabras del Titanic, dificultad:', difficulty);
@@ -580,7 +605,7 @@ const studentSelfEnroll = async (classroomId: number) => {
     }
   };
 
-  // NUEVOS MÉTODOS PARA SISTEMA MULTI-DOCENTE
+  // NUEVOS MÉTODOS PARA SISTEMA MULTI-DOCENTE (usando makeApiRequest)
 
   const createClassroom = async (classroomData: {
     name: string;
@@ -592,14 +617,13 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/classrooms`, {
+      const data = await makeApiRequest<{ success: boolean; classroom_id: number; error?: string }>('/classrooms', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(classroomData),
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, classroom_id: data.classroom_id } : { success: false, error: data.error };
+      return { success: true, classroom_id: data.classroom_id };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -609,12 +633,11 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/classrooms/my-classrooms`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const data = await makeApiRequest<{ success: boolean; classrooms: Classroom[]; error?: string }>('/classrooms/my-classrooms', {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, classrooms: data.classrooms } : { success: false, error: data.error };
+      return { success: true, classrooms: data.classrooms };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -624,14 +647,13 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/classrooms/${classroomId}/students`, {
+      await makeApiRequest(`/classrooms/${classroomId}/students`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ student_id: studentId }),
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true } : { success: false, error: data.error };
+      return { success: true };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -641,12 +663,11 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/classrooms/${classroomId}/students`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const data = await makeApiRequest<{ success: boolean; students: Student[]; error?: string }>(`/classrooms/${classroomId}/students`, {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, students: data.students } : { success: false, error: data.error };
+      return { success: true, students: data.students };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -660,14 +681,13 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/students/${studentId}/parents`, {
+      await makeApiRequest(`/students/${studentId}/parents`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ parent_id: parentId, ...relationData }),
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true } : { success: false, error: data.error };
+      return { success: true };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -677,12 +697,11 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/parents/my-children`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const data = await makeApiRequest<{ success: boolean; children: Student[]; error?: string }>('/parents/my-children', {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, children: data.children } : { success: false, error: data.error };
+      return { success: true, children: data.children };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -693,12 +712,11 @@ const studentSelfEnroll = async (classroomId: number) => {
 
     try {
       const queryParams = classroomId ? `?classroom_id=${classroomId}` : '';
-      const response = await fetch(`${API_BASE_URL}/titanic/words/available${queryParams}`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const data = await makeApiRequest<{ success: boolean; words: WordEntry[]; error?: string }>(`/titanic/words/available${queryParams}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, words: data.words } : { success: false, error: data.error };
+      return { success: true, words: data.words };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -708,14 +726,13 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/titanic/words/scoped`, {
+      const data = await makeApiRequest<{ success: boolean; word_id: number; error?: string }>('/titanic/words/scoped', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(wordData),
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, word_id: data.word_id } : { success: false, error: data.error };
+      return { success: true, word_id: data.word_id };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -725,12 +742,11 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/reports/classroom/${classroomId}/progress`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const data = await makeApiRequest<{ success: boolean; report: any[]; error?: string }>(`/reports/classroom/${classroomId}/progress`, {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, report: data.report } : { success: false, error: data.error };
+      return { success: true, report: data.report };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -740,12 +756,11 @@ const studentSelfEnroll = async (classroomId: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/teacher`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const data = await makeApiRequest<{ success: boolean; dashboard: TeacherDashboard; error?: string }>('/dashboard/teacher', {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, dashboard: data.dashboard } : { success: false, error: data.error };
+      return { success: true, dashboard: data.dashboard };
     } catch (error) {
       return { success: false, error: 'Error de conexión' };
     }
@@ -755,6 +770,7 @@ const studentSelfEnroll = async (classroomId: number) => {
     user,
     token,
     loading,
+    API_BASE_URL, // 🆕 Exponer API_BASE_URL
     login,
     register,
     logout,
@@ -764,6 +780,7 @@ const studentSelfEnroll = async (classroomId: number) => {
     searchStudent,
     getAvailableClassrooms,
     studentSelfEnroll,
+    checkStudentEnrollmentStatus, // 🆕 NUEVO método
     // CRUD Titanic
     getTitanicWords,
     getTitanicStats,
@@ -813,4 +830,3 @@ export type {
   Classroom, ParentChildRelation, Student, TeacherDashboard, TitanicStats, User,
   WordEntry, WordFilters, WordInput
 };
-

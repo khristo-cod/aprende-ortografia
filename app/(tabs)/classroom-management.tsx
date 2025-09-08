@@ -1,19 +1,19 @@
-// app/(tabs)/classroom-management.tsx - Gestión de Aulas
+// app/(tabs)/classroom-management.tsx - Gestión de Aulas CORREGIDO
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Classroom, Student, useAuth } from '../../src/contexts/AuthContext';
 
@@ -21,9 +21,15 @@ interface ClassroomCardProps {
   classroom: Classroom;
   onPress: () => void;
   onManageStudents: () => void;
+  onEnrollStudent: (classroom: Classroom) => void;
 }
 
-const ClassroomCard: React.FC<ClassroomCardProps> = ({ classroom, onPress, onManageStudents }) => (
+const ClassroomCard: React.FC<ClassroomCardProps> = ({ 
+  classroom, 
+  onPress, 
+  onManageStudents, 
+  onEnrollStudent 
+}) => (
   <TouchableOpacity style={styles.classroomCard} onPress={onPress}>
     <View style={styles.cardHeader}>
       <View style={styles.cardTitle}>
@@ -41,13 +47,21 @@ const ClassroomCard: React.FC<ClassroomCardProps> = ({ classroom, onPress, onMan
     
     <View style={styles.cardActions}>
       <TouchableOpacity style={styles.actionButton} onPress={onManageStudents}>
-        <MaterialIcons name="group-add" size={16} color="#4CAF50" />
-        <Text style={styles.actionText}>Estudiantes</Text>
+        <MaterialIcons name="group" size={16} color="#4CAF50" />
+        <Text style={styles.actionText}>Ver Estudiantes</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={[styles.actionButton, { backgroundColor: '#2196F3' }]} 
+        onPress={() => onEnrollStudent(classroom)}
+      >
+        <MaterialIcons name="person-add" size={16} color="#FFF" />
+        <Text style={[styles.actionText, { color: '#FFF' }]}>Inscribir</Text>
       </TouchableOpacity>
       
       <TouchableOpacity style={styles.actionButton} onPress={onPress}>
         <MaterialIcons name="bar-chart" size={16} color="#FF9800" />
-        <Text style={styles.actionText}>Ver Progreso</Text>
+        <Text style={styles.actionText}>Progreso</Text>
       </TouchableOpacity>
     </View>
   </TouchableOpacity>
@@ -57,14 +71,17 @@ export default function ClassroomManagement() {
   const router = useRouter();
   const { 
     user, 
+    token,
     isAuthenticated, 
     isDocente,
     getMyClassrooms, 
     createClassroom,
     getClassroomStudents,
-    enrollStudent 
+    enrollStudent,
+    API_BASE_URL
   } = useAuth();
 
+  // Estados principales
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,6 +102,81 @@ export default function ClassroomManagement() {
   const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(null);
   const [classroomStudents, setClassroomStudents] = useState<Student[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
+
+  // Modal de inscripción de estudiantes
+  const [showStudentModal, setShowStudentModal] = useState(false);
+  const [studentEmail, setStudentEmail] = useState('');
+  const [enrollingStudent, setEnrollingStudent] = useState(false);
+  const [selectedClassroomForEnrollment, setSelectedClassroomForEnrollment] = useState<Classroom | null>(null);
+
+  // Función para buscar estudiante por email
+  const searchStudentByEmail = async (email: string) => {
+    if (!token) return { success: false, error: 'No autenticado' };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/search-student`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
+
+  // Función para inscribir estudiante en aula
+  const enrollStudentInClassroom = async () => {
+    if (!studentEmail.trim() || !selectedClassroomForEnrollment) {
+      Alert.alert('Error', 'Ingresa el email del estudiante');
+      return;
+    }
+
+    setEnrollingStudent(true);
+    try {
+      // Primero buscar al estudiante por email
+      const searchResult = await searchStudentByEmail(studentEmail.trim());
+      
+      if (!searchResult.success || !searchResult.student) {
+        Alert.alert('Error', searchResult.error || 'Estudiante no encontrado');
+        return;
+      }
+
+      // Inscribir al estudiante
+      const result = await enrollStudent(selectedClassroomForEnrollment.id, searchResult.student.id);
+      
+      if (result.success) {
+        Alert.alert(
+          'Estudiante Inscrito',
+          `${searchResult.student.name} ha sido inscrito en ${selectedClassroomForEnrollment.name}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setShowStudentModal(false);
+                loadClassrooms();
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'No se pudo inscribir al estudiante');
+      }
+    } catch (error) {
+      console.error('Error inscribiendo estudiante:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado');
+    } finally {
+      setEnrollingStudent(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated || !isDocente) {
@@ -185,6 +277,12 @@ export default function ClassroomManagement() {
     }
   };
 
+  const handleEnrollStudent = async (classroom: Classroom) => {
+    setSelectedClassroomForEnrollment(classroom);
+    setShowStudentModal(true);
+    setStudentEmail('');
+  };
+
   const handleViewProgress = (classroom: Classroom) => {
     router.push(`/(tabs)/classroom-progress?id=${classroom.id}&name=${encodeURIComponent(classroom.name)}` as any);
   };
@@ -194,6 +292,7 @@ export default function ClassroomManagement() {
       classroom={item}
       onPress={() => handleViewProgress(item)}
       onManageStudents={() => handleManageStudents(item)}
+      onEnrollStudent={handleEnrollStudent}
     />
   );
 
@@ -408,11 +507,74 @@ export default function ClassroomManagement() {
 
             <TouchableOpacity 
               style={styles.addStudentButton}
-              onPress={() => Alert.alert('Funcionalidad', 'Próximamente: Agregar estudiantes')}
+              onPress={() => {
+                setShowStudentsModal(false);
+                if (selectedClassroom) {
+                  handleEnrollStudent(selectedClassroom);
+                }
+              }}
             >
               <MaterialIcons name="person-add" size={20} color="#FFF" />
               <Text style={styles.addStudentButtonText}>Inscribir Estudiante</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de inscripción de estudiante */}
+      <Modal visible={showStudentModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Inscribir Estudiante</Text>
+              <TouchableOpacity onPress={() => setShowStudentModal(false)} disabled={enrollingStudent}>
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Aula: {selectedClassroomForEnrollment?.name}
+            </Text>
+
+            <View style={styles.modalForm}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email del Estudiante</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={studentEmail}
+                  onChangeText={setStudentEmail}
+                  placeholder="estudiante@example.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!enrollingStudent}
+                />
+                <Text style={styles.inputHint}>
+                  El estudiante debe estar registrado en la app
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.cancelButton, enrollingStudent && styles.buttonDisabled]} 
+                onPress={() => setShowStudentModal(false)}
+                disabled={enrollingStudent}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.saveButton, enrollingStudent && styles.buttonDisabled]} 
+                onPress={enrollStudentInClassroom}
+                disabled={enrollingStudent}
+              >
+                {enrollingStudent ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Inscribir</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -647,6 +809,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     backgroundColor: '#FAFAFA',
+  },
+  inputHint: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   inputRow: {
     flexDirection: 'row',
