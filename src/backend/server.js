@@ -611,6 +611,27 @@ app.post('/api/classrooms/:classroomId/students', authenticateToken, async (req,
       return res.status(400).json({ error: 'Estudiante no encontrado' });
     }
 
+    // 🚨 NUEVA VALIDACIÓN: Verificar si ya está inscrito en CUALQUIER aula
+    const existingEnrollment = await getQuery(`
+      SELECT c.name as classroom_name, c.id as classroom_id,
+             u.name as teacher_name
+      FROM student_enrollments se
+      JOIN classrooms c ON se.classroom_id = c.id
+      JOIN users u ON c.teacher_id = u.id
+      WHERE se.student_id = ? AND se.status = 'active' AND c.active = 1
+    `, [student_id]);
+
+    if (existingEnrollment) {
+      return res.status(400).json({ 
+        error: `${student.name} ya está inscrito en el aula "${existingEnrollment.classroom_name}" con ${existingEnrollment.teacher_name}. Un estudiante solo puede estar en una aula a la vez.`,
+        details: {
+          currentClassroom: existingEnrollment.classroom_name,
+          currentTeacher: existingEnrollment.teacher_name,
+          classroomId: existingEnrollment.classroom_id
+        }
+      });
+    }
+
     // Verificar capacidad del aula
     const currentCount = await getQuery(`
       SELECT COUNT(*) as count 
@@ -624,30 +645,11 @@ app.post('/api/classrooms/:classroomId/students', authenticateToken, async (req,
       });
     }
 
-    // Verificar si ya está inscrito
-    const existingEnrollment = await getQuery(`
-      SELECT * FROM student_enrollments 
-      WHERE student_id = ? AND classroom_id = ?
+    // Crear nueva inscripción
+    await runQuery(`
+      INSERT INTO student_enrollments (student_id, classroom_id, status, enrollment_date) 
+      VALUES (?, ?, 'active', CURRENT_TIMESTAMP)
     `, [student_id, classroomId]);
-
-    if (existingEnrollment) {
-      if (existingEnrollment.status === 'active') {
-        return res.status(400).json({ error: 'El estudiante ya está inscrito en esta aula' });
-      } else {
-        // Reactivar inscripción
-        await runQuery(`
-          UPDATE student_enrollments 
-          SET status = 'active', enrollment_date = CURRENT_TIMESTAMP 
-          WHERE id = ?
-        `, [existingEnrollment.id]);
-      }
-    } else {
-      // Crear nueva inscripción
-      await runQuery(`
-        INSERT INTO student_enrollments (student_id, classroom_id, status, enrollment_date) 
-        VALUES (?, ?, 'active', CURRENT_TIMESTAMP)
-      `, [student_id, classroomId]);
-    }
 
     res.json({
       success: true,
@@ -712,6 +714,32 @@ app.post('/api/student/enroll/:classroomId', authenticateToken, async (req, res)
 
     const { classroomId } = req.params;
 
+    // 🚨 NUEVA VALIDACIÓN: Verificar si ya está inscrito en alguna aula
+    const existingEnrollment = await getQuery(`
+      SELECT 
+        se.id, se.enrollment_date,
+        c.id as classroom_id, c.name as classroom_name,
+        c.grade_level, c.section, c.school_year,
+        u.name as teacher_name, u.email as teacher_email
+      FROM student_enrollments se
+      JOIN classrooms c ON se.classroom_id = c.id
+      JOIN users u ON c.teacher_id = u.id
+      WHERE se.student_id = ? AND se.status = 'active' AND c.active = 1
+      LIMIT 1
+    `, [req.user.id]);
+
+    if (existingEnrollment) {
+      return res.status(400).json({
+        error: `Ya estás inscrito en el aula "${existingEnrollment.classroom_name}" con ${existingEnrollment.teacher_name}. Solo puedes estar en una aula a la vez.`,
+        currentEnrollment: {
+          classroomId: existingEnrollment.classroom_id,
+          classroomName: existingEnrollment.classroom_name,
+          teacherName: existingEnrollment.teacher_name,
+          enrollmentDate: existingEnrollment.enrollment_date
+        }
+      });
+    }
+
     // Verificar que el aula existe y tiene espacio
     const classroom = await getQuery(`
       SELECT c.*, u.name as teacher_name,
@@ -731,61 +759,6 @@ app.post('/api/student/enroll/:classroomId', authenticateToken, async (req, res)
       return res.status(400).json({ error: 'El aula está llena' });
     }
 
-   // Verificar si un estudiante está inscrito en alguna aula
-app.get('/api/student/enrollment-status', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'nino') {
-      return res.status(403).json({ error: 'Solo estudiantes pueden verificar su inscripción' });
-    }
-
-    // Buscar si el estudiante está inscrito en alguna aula
-    const enrollment = await getQuery(`
-      SELECT 
-        se.id,
-        se.status,
-        se.enrollment_date,
-        c.id as classroom_id,
-        c.name as classroom_name,
-        c.grade_level,
-        c.section,
-        c.school_year,
-        u.name as teacher_name,
-        u.email as teacher_email
-      FROM student_enrollments se
-      JOIN classrooms c ON se.classroom_id = c.id
-      JOIN users u ON c.teacher_id = u.id
-      WHERE se.student_id = ? AND se.status = 'active' AND c.active = 1
-      LIMIT 1
-    `, [req.user.id]);
-
-    if (enrollment) {
-      res.json({
-        success: true,
-        isEnrolled: true,
-        classroom: {
-          id: enrollment.classroom_id,
-          name: enrollment.classroom_name,
-          grade_level: enrollment.grade_level,
-          section: enrollment.section,
-          school_year: enrollment.school_year,
-          teacher_name: enrollment.teacher_name,
-          teacher_email: enrollment.teacher_email,
-          enrollment_date: enrollment.enrollment_date
-        }
-      });
-    } else {
-      res.json({
-        success: true,
-        isEnrolled: false,
-        message: 'El estudiante no está inscrito en ninguna aula'
-      });
-    }
-  } catch (error) {
-    console.error('Error verificando inscripción:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
     // Inscribir al estudiante
     await runQuery(`
       INSERT INTO student_enrollments (student_id, classroom_id, status, enrollment_date) 
@@ -798,6 +771,130 @@ app.get('/api/student/enrollment-status', authenticateToken, async (req, res) =>
     });
   } catch (error) {
     console.error('Error en auto-inscripción:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/students/:studentId/transfer/:newClassroomId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'docente') {
+      return res.status(403).json({ error: 'Solo docentes pueden transferir estudiantes' });
+    }
+
+    const { studentId, newClassroomId } = req.params;
+    const { reason } = req.body;
+
+    // Verificar que la nueva aula pertenece al docente
+    const newClassroom = await getQuery(`
+      SELECT * FROM classrooms 
+      WHERE id = ? AND teacher_id = ? AND active = 1
+    `, [newClassroomId, req.user.id]);
+    
+    if (!newClassroom) {
+      return res.status(404).json({ error: 'Nueva aula no encontrada' });
+    }
+
+    // Verificar estudiante y su inscripción actual
+    const currentEnrollment = await getQuery(`
+      SELECT se.*, c.name as current_classroom_name, u.name as student_name
+      FROM student_enrollments se
+      JOIN classrooms c ON se.classroom_id = c.id
+      JOIN users u ON se.student_id = u.id
+      WHERE se.student_id = ? AND se.status = 'active'
+    `, [studentId]);
+
+    if (!currentEnrollment) {
+      return res.status(400).json({ error: 'El estudiante no está inscrito en ninguna aula activa' });
+    }
+
+    // Verificar capacidad de la nueva aula
+    const currentCount = await getQuery(`
+      SELECT COUNT(*) as count 
+      FROM student_enrollments 
+      WHERE classroom_id = ? AND status = 'active'
+    `, [newClassroomId]);
+
+    if (currentCount.count >= newClassroom.max_students) {
+      return res.status(400).json({ 
+        error: `La nueva aula está llena (${newClassroom.max_students}/${newClassroom.max_students})` 
+      });
+    }
+
+    // Realizar transferencia
+    await runQuery('BEGIN TRANSACTION');
+    
+    try {
+      // Marcar inscripción actual como transferida
+      await runQuery(`
+        UPDATE student_enrollments 
+        SET status = 'transferred', notes = ? 
+        WHERE id = ?
+      `, [reason || 'Transferido por docente', currentEnrollment.id]);
+
+      // Crear nueva inscripción
+      await runQuery(`
+        INSERT INTO student_enrollments (student_id, classroom_id, status, enrollment_date, notes) 
+        VALUES (?, ?, 'active', CURRENT_TIMESTAMP, ?)
+      `, [studentId, newClassroomId, `Transferido desde ${currentEnrollment.current_classroom_name}`]);
+
+      await runQuery('COMMIT');
+
+      res.json({
+        success: true,
+        message: `${currentEnrollment.student_name} ha sido transferido exitosamente de "${currentEnrollment.current_classroom_name}" a "${newClassroom.name}"`
+      });
+    } catch (error) {
+      await runQuery('ROLLBACK');
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error transfiriendo estudiante:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// =================== NUEVO ENDPOINT: DESINSCRIBIR ESTUDIANTE ===================
+app.delete('/api/students/:studentId/unenroll', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'docente') {
+      return res.status(403).json({ error: 'Solo docentes pueden desinscribir estudiantes' });
+    }
+
+    const { studentId } = req.params;
+    const { reason } = req.body;
+
+    // Verificar inscripción actual
+    const enrollment = await getQuery(`
+      SELECT se.*, c.name as classroom_name, u.name as student_name,
+             c.teacher_id
+      FROM student_enrollments se
+      JOIN classrooms c ON se.classroom_id = c.id
+      JOIN users u ON se.student_id = u.id
+      WHERE se.student_id = ? AND se.status = 'active'
+    `, [studentId]);
+
+    if (!enrollment) {
+      return res.status(400).json({ error: 'El estudiante no está inscrito en ninguna aula activa' });
+    }
+
+    // Verificar que el aula pertenece al docente
+    if (enrollment.teacher_id !== req.user.id) {
+      return res.status(403).json({ error: 'Solo puedes desinscribir estudiantes de tus propias aulas' });
+    }
+
+    // Desinscribir estudiante
+    await runQuery(`
+      UPDATE student_enrollments 
+      SET status = 'inactive', notes = ? 
+      WHERE id = ?
+    `, [reason || 'Desinscrito por docente', enrollment.id]);
+
+    res.json({
+      success: true,
+      message: `${enrollment.student_name} ha sido desinscrito de "${enrollment.classroom_name}"`
+    });
+  } catch (error) {
+    console.error('Error desinscribiendo estudiante:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

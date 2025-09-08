@@ -1,7 +1,7 @@
 // src/contexts/AuthContext.tsx - VERSIÓN CORREGIDA
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { makeApiRequest } from '../config/api';
+import { API_BASE_URL, makeApiRequest } from '../config/api';
 
 // Tipos base existentes (mantener todos los tipos que ya tienes)
 interface User {
@@ -95,12 +95,18 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   
+  // 🆕 AGREGAR ESTA LÍNEA:
+  API_BASE_URL: string;
+  
   // 🆕 CORREGIR - No devolver API_BASE_URL aquí, usar directamente del config
   
   // Métodos de autenticación
   login: (email: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   register: (name: string, email: string, password: string, role: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => Promise<void>;
+
+  transferStudent: (studentId: number, newClassroomId: number, reason?: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  unenrollStudent: (studentId: number, reason?: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   
   // Métodos de juegos
   saveGameProgress: (gameData: any) => Promise<{ success: boolean; data?: any; error?: string }>;
@@ -161,6 +167,49 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     checkAuthState();
   }, []);
+
+  // Implementar los métodos en el AuthProvider:
+const transferStudent = async (studentId: number, newClassroomId: number, reason?: string) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest(`/students/${studentId}/transfer/${newClassroomId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason }),
+    });
+
+    return { success: true, message: data.message };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+const unenrollStudentFromClassroom = async (studentId: number, reason?: string) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest(`/students/${studentId}/unenroll`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason }),
+    });
+
+    return { success: true, message: data.message };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
 
   const checkAuthState = async (): Promise<void> => {
     try {
@@ -672,12 +721,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     token,
     loading,
+    API_BASE_URL, // 🆕 AGREGAR ESTA LÍNEA
     login,
     register,
     logout,
     saveGameProgress,
     getGameProgress,
     getGameConfig,
+    transferStudent,
+    unenrollStudent: unenrollStudentFromClassroom,
     
     // 🆕 NUEVOS MÉTODOS
     searchStudent,
@@ -730,3 +782,4 @@ export type {
   Classroom, Student, TeacherDashboard, TitanicStats, User,
   WordEntry, WordFilters, WordInput
 };
+

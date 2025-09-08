@@ -1,4 +1,4 @@
-// app/(tabs)/_layout.tsx - ACTUALIZADO CON NUEVA PANTALLA
+// 🔧 ACTUALIZAR app/(tabs)/_layout.tsx - CORREGIR VISIBILIDAD DE TABS
 
 import { HapticTab } from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';
@@ -31,7 +31,7 @@ export default function TabLayout() {
           }),
         }}>
         
-        {/* DASHBOARD ESPECÍFICO POR ROL - PANTALLA PRINCIPAL */}
+        {/* =================== DASHBOARD ESPECÍFICO POR ROL =================== */}
         {isDocente && (
           <Tabs.Screen
             name="teacher-dashboard"
@@ -62,7 +62,7 @@ export default function TabLayout() {
           />
         )}
 
-        {/* JUEGOS - Solo visibles para niños y representantes */}
+        {/* =================== JUEGOS - Visibles para estudiantes y representantes =================== */}
         {(isNino || isRepresentante) && (
           <>
             <Tabs.Screen
@@ -91,7 +91,7 @@ export default function TabLayout() {
           </>
         )}
 
-        {/* DOCENTES: Solo navegación esencial */}
+        {/* =================== GESTIÓN DE AULAS - SOLO DOCENTES =================== */}
         {isDocente && (
           <Tabs.Screen
             name="classroom-management"
@@ -102,59 +102,60 @@ export default function TabLayout() {
           />
         )}
 
-        {/* PANTALLAS OCULTAS - No aparecen en tabs pero son navegables */}
+        {/* =================== PANTALLAS OCULTAS - No aparecen en tabs pero son navegables =================== */}
         <Tabs.Screen
           name="teacher-reports"
           options={{
-            href: null,
+            href: null, // 🚨 OCULTO del tab bar
           }}
         />
         
         <Tabs.Screen
           name="titanic-admin"
           options={{
-            href: null,
+            href: null, // 🚨 OCULTO del tab bar
           }}
         />
 
-        {/* 🆕 NUEVA PANTALLA PARA ESTUDIANTES */}
         <Tabs.Screen
           name="student-classroom-selection"
           options={{
-            href: null, // Oculta del tab bar, accesible por navegación
+            href: null, // 🚨 OCULTO del tab bar
           }}
         />
 
         <Tabs.Screen
           name="classroom-progress"
           options={{
-            href: null,
+            href: null, // 🚨 OCULTO del tab bar
           }}
         />
 
         <Tabs.Screen
           name="child-progress"
           options={{
-            href: null,
+            href: null, // 🚨 OCULTO del tab bar
           }}
         />
 
-        {/* SOLO PARA NIÑOS: Mantener index como pantalla de juegos */}
+        {/* =================== OCULTAR PANTALLAS SEGÚN ROLES =================== */}
+        
+        {/* Ocultar index para docentes y representantes (tienen sus dashboards) */}
         {!isNino && (
           <Tabs.Screen
             name="index"
             options={{
-              href: null,
+              href: null, // 🚨 OCULTO para no-estudiantes
             }}
           />
         )}
 
-        {/* OCULTAR DASHBOARDS DE OTROS ROLES */}
+        {/* Ocultar dashboards de otros roles */}
         {!isDocente && (
           <Tabs.Screen
             name="teacher-dashboard"
             options={{
-              href: null,
+              href: null, // 🚨 OCULTO para no-docentes
             }}
           />
         )}
@@ -163,19 +164,43 @@ export default function TabLayout() {
           <Tabs.Screen
             name="parent-dashboard"
             options={{
-              href: null,
+              href: null, // 🚨 OCULTO para no-representantes
             }}
           />
         )}
 
-        {/* OCULTAR EXPLORE PARA DOCENTES */}
-        {isDocente && (
+        {/* 🚨 IMPORTANTE: Ocultar classroom-management para estudiantes */}
+        {!isDocente && (
           <Tabs.Screen
-            name="explore"
+            name="classroom-management"
             options={{
-              href: null,
+              href: null, // 🚨 OCULTO para no-docentes
             }}
           />
+        )}
+
+        {/* Ocultar juegos para docentes (pueden acceder por floating menu) */}
+        {isDocente && (
+          <>
+            <Tabs.Screen
+              name="JuegoDeOrtografia"
+              options={{
+                href: null, // 🚨 OCULTO para docentes
+              }}
+            />
+            <Tabs.Screen
+              name="titanic"
+              options={{
+                href: null, // 🚨 OCULTO para docentes
+              }}
+            />
+            <Tabs.Screen
+              name="explore"
+              options={{
+                href: null, // 🚨 OCULTO para docentes
+              }}
+            />
+          </>
         )}
       </Tabs>
 

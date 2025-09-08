@@ -34,15 +34,40 @@ export default function StudentClassroomSelection() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [enrolling, setEnrolling] = useState<number | null>(null);
+  const [currentEnrollment, setCurrentEnrollment] = useState<any>(null);
 
   useEffect(() => {
+  const checkAndLoad = async () => {
     if (!isNino) {
       Alert.alert('Acceso Denegado', 'Esta pantalla es solo para estudiantes');
-      router.back();
+      setTimeout(() => router.back(), 100);
       return;
     }
+
+    // 🆕 VERIFICAR INSCRIPCIÓN ACTUAL PRIMERO
+    try {
+      const enrollmentResult = await checkStudentEnrollmentStatus();
+      
+      if (enrollmentResult.success && enrollmentResult.isEnrolled) {
+        setCurrentEnrollment(enrollmentResult.classroom);
+        console.log('✅ Estudiante ya inscrito en:', enrollmentResult.classroom?.name);
+        // No cargar aulas disponibles si ya está inscrito
+        setLoading(false);
+        return;
+      }
+    } catch (error) {
+      console.log('Error verificando inscripción:', error);
+    }
+
+    // Solo cargar aulas disponibles si NO está inscrito
     loadAvailableClassrooms();
-  }, []);
+  };
+
+  const timer = setTimeout(checkAndLoad, 100);
+  return () => clearTimeout(timer);
+}, [isNino]);
+
+// 🔧 TAMBIÉN ACTUALIZAR la función handleEnrollInClassroom:
 
   const loadAvailableClassrooms = async () => {
     try {
@@ -68,46 +93,53 @@ export default function StudentClassroomSelection() {
     setRefreshing(false);
   };
 
-  const handleEnrollInClassroom = async (classroom: AvailableClassroom) => {
-    Alert.alert(
-      'Confirmar Inscripción',
-      `¿Deseas inscribirte en:\n\n${classroom.name}\n${classroom.grade_level} - Sección ${classroom.section}\nProfesor: ${classroom.teacher_name}`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Inscribirme',
-          onPress: async () => {
-            setEnrolling(classroom.id);
-            try {
-              const result = await studentSelfEnroll(classroom.id);
-              
-              if (result.success) {
-                Alert.alert(
-                  '¡Inscripción Exitosa! 🎉',
-                  result.message || 'Te has inscrito correctamente',
-                  [
-                    {
-                      text: 'Continuar',
-                      onPress: () => {
-                        router.replace('/(tabs)/' as any); // Ir a juegos
-                      }
+ const handleEnrollInClassroom = async (classroom: AvailableClassroom) => {
+  Alert.alert(
+    'Confirmar Inscripción',
+    `¿Deseas inscribirte en:\n\n${classroom.name}\n${classroom.grade_level} - Sección ${classroom.section}\nProfesor: ${classroom.teacher_name}`,
+    [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Inscribirme',
+        onPress: async () => {
+          setEnrolling(classroom.id);
+          try {
+            const result = await studentSelfEnroll(classroom.id);
+            
+            if (result.success) {
+              Alert.alert(
+                '¡Inscripción Exitosa! 🎉',
+                result.message || 'Te has inscrito correctamente',
+                [
+                  {
+                    text: 'Continuar',
+                    onPress: () => {
+                      // 🔧 Navegación más segura
+                      setTimeout(() => {
+                        try {
+                          router.replace('/(tabs)/' as any); // Ir a juegos
+                        } catch (error) {
+                          console.log('Error navegando:', error);
+                        }
+                      }, 100);
                     }
-                  ]
-                );
-              } else {
-                Alert.alert('Error', result.error || 'No se pudo completar la inscripción');
-              }
-            } catch (error) {
-              console.error('Error en inscripción:', error);
-              Alert.alert('Error', 'Error de conexión');
-            } finally {
-              setEnrolling(null);
+                  }
+                ]
+              );
+            } else {
+              Alert.alert('Error', result.error || 'No se pudo completar la inscripción');
             }
+          } catch (error) {
+            console.error('Error en inscripción:', error);
+            Alert.alert('Error', 'Error de conexión');
+          } finally {
+            setEnrolling(null);
           }
         }
-      ]
-    );
-  };
+      }
+    ]
+  );
+};
 
   const renderClassroomItem = ({ item }: { item: AvailableClassroom }) => (
     <View style={styles.classroomCard}>
