@@ -4,15 +4,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Classroom, TeacherDashboard as TeacherDashboardType, useAuth } from '../../src/contexts/AuthContext';
 
@@ -87,6 +88,7 @@ export default function TeacherDashboard() {
     user, 
     isAuthenticated, 
     isDocente,
+    logout,
     getTeacherDashboard,
     getMyClassrooms
   } = useAuth();
@@ -96,6 +98,44 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+    const handleLogout = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        const confirmed = window.confirm(
+          `🚪 ¿Estás seguro que deseas cerrar sesión, ${user?.name}?`
+        );
+        
+        if (confirmed) {
+          console.log('🔄 Cerrando sesión...');
+          await logout();
+          console.log('✅ Sesión cerrada exitosamente');
+          router.replace('/auth/login' as any); // 🚀 Ir directo a login
+        }
+      } else {
+        Alert.alert(
+          '🚪 Cerrar Sesión',
+          `¿Estás seguro que deseas salir, ${user?.name}?`,
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { 
+              text: 'Salir', 
+              style: 'destructive',
+              onPress: async () => {
+                console.log('🔄 Cerrando sesión...');
+                await logout();
+                console.log('✅ Sesión cerrada exitosamente');
+                router.replace('/auth/login' as any); // 🚀 Ir directo a login
+              }
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error al cerrar sesión:', error);
+      Alert.alert('Error', 'No se pudo cerrar la sesión correctamente');
+    }
+  };
+  
   // Actividad reciente simulada
   const [recentActivity] = useState<RecentActivityItem[]>([
     {
@@ -200,11 +240,13 @@ export default function TeacherDashboard() {
               })}
             </Text>
           </View>
+
+          {/* 🆕 BOTÓN DE LOGOUT */}
           <TouchableOpacity 
-            style={styles.profileButton}
-            onPress={() => Alert.alert('Perfil', 'Próximamente: Configuración de perfil')}
+            style={styles.logoutButton}
+            onPress={handleLogout}
           >
-            <MaterialIcons name="account-circle" size={40} color="#FFF" />
+            <MaterialIcons name="logout" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>
 
@@ -254,25 +296,45 @@ export default function TeacherDashboard() {
               color="#2196F3"
               onPress={() => router.push('/(tabs)/classroom-management' as any)}
             />
+            
+            {/* 🎮 NUEVA SECCIÓN: ADMINISTRACIÓN DE JUEGOS */}
             <QuickActionCard
-              title="Palabras Titanic"
-              description="Administrar vocabulario del juego"
-              icon="edit"
+              title="Admin Titanic"
+              description="Gestionar palabras del Titanic"
+              icon="directions-boat"
               color="#00BCD4"
               onPress={() => router.push('/(tabs)/titanic-admin' as any)}
             />
+            
+            <QuickActionCard
+              title="Admin Ortografía"
+              description="Gestionar palabras de ortografía"
+              icon="spellcheck"
+              color="#4CAF50"
+              onPress={() => Alert.alert('Próximamente', 'Panel de administración de Ortografía en desarrollo')}
+            />
+            
+            <QuickActionCard
+              title="Admin Explorar"
+              description="Gestionar reglas y ejemplos"
+              icon="explore"
+              color="#FF9800"
+              onPress={() => Alert.alert('Próximamente', 'Panel de administración de Explorar en desarrollo')}
+            />
+            
             <QuickActionCard
               title="Reportes"
               description="Ver progreso de estudiantes"
               icon="bar-chart"
-              color="#4CAF50"
-              onPress={() => Alert.alert('Reportes', 'Próximamente: Sistema de reportes')}
+              color="#9C27B0"
+              onPress={() => Alert.alert('Reportes', 'Próximamente: Sistema de reportes avanzado')}
             />
+            
             <QuickActionCard
               title="Configuración"
               description="Ajustes y preferencias"
               icon="settings"
-              color="#FF9800"
+              color="#607D8B"
               onPress={() => Alert.alert('Configuración', 'Próximamente: Panel de configuración')}
             />
           </View>
@@ -325,6 +387,78 @@ export default function TeacherDashboard() {
               </TouchableOpacity>
             </View>
           )}
+        </View>
+
+        <View style={styles.gamesAdminSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Administración de Juegos</Text>
+            <TouchableOpacity 
+              style={styles.seeAllButton}
+              onPress={() => Alert.alert('Funcionalidades', 'Próximamente: Panel unificado de juegos')}
+            >
+              <Text style={styles.seeAllText}>Ver todo</Text>
+              <MaterialIcons name="chevron-right" size={16} color="#2196F3" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gamesScroll}>
+            {/* TITANIC - YA DISPONIBLE */}
+            <TouchableOpacity 
+              style={[styles.gameAdminCard, { borderLeftColor: '#00BCD4' }]}
+              onPress={() => router.push('/(tabs)/titanic-admin' as any)}
+            >
+              <View style={styles.gameCardHeader}>
+                <MaterialIcons name="directions-boat" size={32} color="#00BCD4" />
+                <View style={styles.gameStatus}>
+                  <Text style={[styles.statusText, { color: '#4CAF50' }]}>Activo</Text>
+                </View>
+              </View>
+              <Text style={styles.gameCardTitle}>Titanic</Text>
+              <Text style={styles.gameCardDescription}>Gestionar palabras y categorías</Text>
+              <View style={styles.gameCardStats}>
+                <Text style={styles.statItem}>📝 {dashboard?.words_created || 0} palabras</Text>
+                <Text style={styles.statItem}>🎯 CRUD completo</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* ORTOGRAFÍA - EN DESARROLLO */}
+            <TouchableOpacity 
+              style={[styles.gameAdminCard, { borderLeftColor: '#4CAF50', opacity: 0.7 }]}
+              onPress={() => Alert.alert('Próximamente', 'Panel de administración de Ortografía en desarrollo')}
+            >
+              <View style={styles.gameCardHeader}>
+                <MaterialIcons name="spellcheck" size={32} color="#4CAF50" />
+                <View style={styles.gameStatus}>
+                  <Text style={[styles.statusText, { color: '#FF9800' }]}>Desarrollo</Text>
+                </View>
+              </View>
+              <Text style={styles.gameCardTitle}>Ortografía</Text>
+              <Text style={styles.gameCardDescription}>Próximamente: Gestión de palabras</Text>
+              <View style={styles.gameCardStats}>
+                <Text style={styles.statItem}>🚧 En desarrollo</Text>
+                <Text style={styles.statItem}>🎯 Próxima versión</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* EXPLORAR - EN DESARROLLO */}
+            <TouchableOpacity 
+              style={[styles.gameAdminCard, { borderLeftColor: '#FF9800', opacity: 0.7 }]}
+              onPress={() => Alert.alert('Próximamente', 'Panel de administración de Explorar en desarrollo')}
+            >
+              <View style={styles.gameCardHeader}>
+                <MaterialIcons name="explore" size={32} color="#FF9800" />
+                <View style={styles.gameStatus}>
+                  <Text style={[styles.statusText, { color: '#FF9800' }]}>Desarrollo</Text>
+                </View>
+              </View>
+              <Text style={styles.gameCardTitle}>Explorar</Text>
+              <Text style={styles.gameCardDescription}>Próximamente: Gestión de reglas</Text>
+              <View style={styles.gameCardStats}>
+                <Text style={styles.statItem}>🚧 En desarrollo</Text>
+                <Text style={styles.statItem}>🎯 Próxima versión</Text>
+              </View>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
         {/* Actividad reciente */}
@@ -665,5 +799,68 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     fontWeight: '500',
+  },
+  logoutButton: {
+    backgroundColor: '#F44336',
+    padding: 12,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  gamesAdminSection: {
+    marginBottom: 20,
+  },
+  gamesScroll: {
+    paddingHorizontal: 20,
+  },
+  gameAdminCard: {
+    width: 200,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    marginRight: 16,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  gameCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  gameStatus: {
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  gameCardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  gameCardDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 12,
+  },
+  gameCardStats: {
+    gap: 4,
+  },
+  statItem: {
+    fontSize: 10,
+    color: '#999',
   },
 });

@@ -21,6 +21,8 @@ const MAPPING = {
   'star.fill': 'star',
   'gearshape.fill': 'settings',
   'person.fill': 'person',
+  'figure.2.and.child.holdinghands': 'family-restroom',
+  'chart.bar.fill': 'bar-chart'
 } as IconMapping;
 
 /**

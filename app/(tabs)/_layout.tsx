@@ -1,9 +1,10 @@
-// app/(tabs)/_layout.tsx - SISTEMA SIMPLIFICADO CON FAB
+// 🔧 app/(tabs)/_layout.tsx - ICONOS VÁLIDOS QUE SÍ EXISTEN
+
 import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
@@ -30,22 +31,13 @@ export default function TabLayout() {
           }),
         }}>
         
-        {/* PANTALLA PRINCIPAL - Para todos los roles */}
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Home',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-          }}
-        />
-
-        {/* DASHBOARD ESPECÍFICO POR ROL */}
+        {/* DASHBOARD ESPECÍFICO POR ROL - PANTALLA PRINCIPAL */}
         {isDocente && (
           <Tabs.Screen
             name="teacher-dashboard"
             options={{
-              title: 'Mi Dashboard',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+              title: 'Dashboard',
+              tabBarIcon: ({ color }) => <MaterialIcons name="analytics" size={28} color={color} />,
             }}
           />
         )}
@@ -54,65 +46,122 @@ export default function TabLayout() {
           <Tabs.Screen
             name="parent-dashboard"
             options={{
-              title: 'Mis Hijos',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="figure.2.and.child.holdinghands" color={color} />,
+              title: 'Mi Panel',
+              tabBarIcon: ({ color }) => <MaterialIcons name="family-restroom" size={28} color={color} />,
             }}
           />
         )}
 
-        {/* JUEGOS PRINCIPALES - Máximo 3 para mantenerlo limpio */}
-        <Tabs.Screen
-          name="titanic"
-          options={{
-            title: 'Titanic',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="sailboat.fill" color={color} />,
-          }}
-        />
-        
-        <Tabs.Screen
-          name="JuegoDeOrtografia"
-          options={{
-            title: 'Ortografía',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="textformat.abc" color={color} />,
-          }}
-        />
-        
-        <Tabs.Screen
-          name="hangman"
-          options={{
-            title: 'Ahorcado',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
-          }}
-        />
+        {isNino && (
+          <Tabs.Screen
+            name="index"
+            options={{
+              title: 'Juegos',
+              tabBarIcon: ({ color }) => <MaterialIcons name="games" size={28} color={color} />,
+            }}
+          />
+        )}
+
+        {/* JUEGOS - Solo visibles para niños y representantes */}
+        {(isNino || isRepresentante) && (
+          <>
+            <Tabs.Screen
+              name="JuegoDeOrtografia"
+              options={{
+                title: 'Ortografía',
+                tabBarIcon: ({ color }) => <MaterialIcons name="edit" size={28} color={color} />,
+              }}
+            />
+            
+            <Tabs.Screen
+              name="titanic"
+              options={{
+                title: 'Titanic',
+                tabBarIcon: ({ color }) => <MaterialIcons name="directions-boat" size={28} color={color} />,
+              }}
+            />
+            
+            <Tabs.Screen
+              name="explore"
+              options={{
+                title: 'Explorar',
+                tabBarIcon: ({ color }) => <MaterialIcons name="explore" size={28} color={color} />,
+              }}
+            />
+          </>
+        )}
+
+        {/* DOCENTES: Solo navegación esencial */}
+        {isDocente && (
+          <Tabs.Screen
+            name="classroom-management"
+            options={{
+              title: 'Mis Aulas',
+              tabBarIcon: ({ color }) => <MaterialIcons name="school" size={28} color={color} />,
+            }}
+          />
+        )}
 
         {/* PANTALLAS OCULTAS - No aparecen en tabs pero son navegables */}
         <Tabs.Screen
-          name="explore"
+          name="teacher-reports"
           options={{
-            href: null, // Oculta del tab bar
-          }}
-        />
-        
-        <Tabs.Screen
-          name="classroom-management"
-          options={{
-            href: null, // Oculta del tab bar
+            href: null,
           }}
         />
         
         <Tabs.Screen
           name="titanic-admin"
           options={{
-            href: null, // Oculta del tab bar
+            href: null,
           }}
         />
-        
+
         <Tabs.Screen
-          name="teacher-reports"
+          name="student-classroom-selection"
           options={{
-            href: null, // Oculta del tab bar
+            href: null, // Oculta del tab bar, accesible por navegación
           }}
         />
+
+        {/* SOLO PARA NIÑOS: Mantener index como pantalla de juegos */}
+        {!isNino && (
+          <Tabs.Screen
+            name="index"
+            options={{
+              href: null,
+            }}
+          />
+        )}
+
+        {/* OCULTAR DASHBOARDS DE OTROS ROLES */}
+        {!isDocente && (
+          <Tabs.Screen
+            name="teacher-dashboard"
+            options={{
+              href: null,
+            }}
+          />
+        )}
+
+        {!isRepresentante && (
+          <Tabs.Screen
+            name="parent-dashboard"
+            options={{
+              href: null,
+            }}
+          />
+        )}
+
+        {/* OCULTAR EXPLORE PARA DOCENTES */}
+        {isDocente && (
+          <Tabs.Screen
+            name="explore"
+            options={{
+              href: null,
+            }}
+          />
+        )}
       </Tabs>
 
       {/* FLOATING ACTION BUTTON SOLO PARA DOCENTES */}

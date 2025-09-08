@@ -1,4 +1,6 @@
-// app/index.tsx - PANTALLA PRINCIPAL CON AUTENTICACIÓN COMPLETA
+// 🔄 ACTUALIZAR app/index.tsx
+// Para que navegue al dashboard correcto según el rol:
+
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
@@ -10,18 +12,38 @@ export default function IndexScreen() {
   const { user, loading, isAuthenticated } = useAuth();
 
   useEffect(() => {
+    console.log('🔍 Index: verificando estado de auth...');
+    console.log('🔍 Loading:', loading, 'isAuthenticated:', isAuthenticated, 'User:', user?.name, 'Role:', user?.role);
+    
     if (!loading) {
       if (isAuthenticated && user) {
-        // Usuario autenticado - ir a la app principal
         console.log(`✅ Usuario autenticado: ${user.name} (${user.role})`);
-        router.replace('/(tabs)/' as any);
+        
+        // 🚀 NAVEGACIÓN BASADA EN ROL
+        switch (user.role) {
+          case 'docente':
+            console.log('👨‍🏫 Navegando a teacher-dashboard');
+            router.replace('/(tabs)/teacher-dashboard' as any);
+            break;
+          case 'representante':
+            console.log('👨‍👩‍👧‍👦 Navegando a parent-dashboard');
+            router.replace('/(tabs)/parent-dashboard' as any);
+            break;
+          case 'nino':
+            console.log('🧒 Navegando a pantalla de juegos');
+            router.replace('/(tabs)/' as any); // index para niños
+            break;
+          default:
+            console.log('🤷 Rol desconocido, navegando a welcome');
+            router.replace('/auth/welcome' as any);
+            break;
+        }
       } else {
-        // No autenticado - ir a pantallas de auth
         console.log('❌ Usuario no autenticado - redirigir a welcome');
         router.replace('/auth/welcome' as any);
       }
     }
-  }, [loading, isAuthenticated, user]);
+  }, [loading, isAuthenticated, user, router]);
 
   return (
     <LinearGradient
@@ -37,8 +59,14 @@ export default function IndexScreen() {
           {loading ? 'Verificando sesión...' : 'Redirigiendo...'}
         </Text>
         
+        {user && (
+          <Text style={styles.userInfo}>
+            {user.name} ({user.role})
+          </Text>
+        )}
+        
         <Text style={styles.subtitle}>
-          Sistema de autenticación inicializado
+          Sistema de autenticación con roles
         </Text>
       </View>
     </LinearGradient>
@@ -70,6 +98,13 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 16,
     textAlign: 'center',
+  },
+  userInfo: {
+    fontSize: 14,
+    color: '#4CAF50',
+    marginTop: 10,
+    textAlign: 'center',
+    fontWeight: 'bold',
   },
   subtitle: {
     fontSize: 12,

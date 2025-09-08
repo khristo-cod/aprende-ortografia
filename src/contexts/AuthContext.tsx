@@ -1,6 +1,7 @@
 // src/contexts/AuthContext.tsx - Sistema multi-docente
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { API_BASE_URL, makeApiRequest } from '../config/api';
 
 // Tipos base
 interface User {
@@ -102,7 +103,11 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  
+
+  searchStudent: (email: string) => Promise<{ success: boolean; student?: any; error?: string }>;
+  getAvailableClassrooms: () => Promise<{ success: boolean; classrooms?: any[]; error?: string }>;
+  studentSelfEnroll: (classroomId: number) => Promise<{ success: boolean; message?: string; error?: string }>;
+
   // Autenticación
   login: (email: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   register: (name: string, email: string, password: string, role: string) => Promise<{ success: boolean; user?: User; error?: string }>;
@@ -175,7 +180,7 @@ interface AuthProviderProps {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE_URL = 'http://192.168.1.4:3001/api';
+//const API_BASE_URL = 'http://192.168.1.4:3001/api';
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -187,106 +192,218 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuthState();
   }, []);
 
+  // 🔍 BUSCAR ESTUDIANTE POR EMAIL
+const searchStudent = async (email: string) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      student?: any;
+      error?: string;
+    }>('/users/search-student', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    return data;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+// 🎓 OBTENER AULAS DISPONIBLES (para estudiantes)
+const getAvailableClassrooms = async () => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      classrooms?: any[];
+      error?: string;
+    }>('/classrooms/available', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return data;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+// 📝 ESTUDIANTE SE INSCRIBE EN AULA
+const studentSelfEnroll = async (classroomId: number) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>(`/student/enroll/${classroomId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return data;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
   const checkAuthState = async (): Promise<void> => {
     try {
+      console.log('🔍 Verificando estado de autenticación...');
       const savedToken = await AsyncStorage.getItem('auth_token');
+      
       if (savedToken) {
-        const response = await fetch(`${API_BASE_URL}/auth/verify`, {
+        console.log('🔑 Token encontrado, verificando con servidor...');
+        
+        // 🆕 USAR LA NUEVA FUNCIÓN makeApiRequest
+        const data = await makeApiRequest<{ success: boolean; user: User }>('/auth/verify', {
           headers: {
             'Authorization': `Bearer ${savedToken}`,
-            'Content-Type': 'application/json',
           },
         });
 
-        if (response.ok) {
-          const data = await response.json();
+        if (data.success) {
+          console.log('✅ Token válido, usuario autenticado');
           setToken(savedToken);
           setUser(data.user);
         } else {
+          console.log('❌ Token inválido, limpiando storage');
           await AsyncStorage.removeItem('auth_token');
         }
+      } else {
+        console.log('📭 No hay token guardado');
       }
     } catch (error) {
-      console.error('Error verificando autenticación:', error);
+      console.error('🚨 Error verificando autenticación:', error);
       await AsyncStorage.removeItem('auth_token');
     } finally {
       setLoading(false);
     }
   };
 
-  // Métodos de autenticación existentes
+    // 🆕 LOGIN MEJORADO
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      console.log('🔐 Intentando login para:', email);
+      
+      const data = await makeApiRequest<{
+        success: boolean;
+        user?: User;
+        token?: string;
+        error?: string;
+      }>('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
-      if (response.ok) {
+      if (data.success && data.token && data.user) {
+        console.log('✅ Login exitoso para:', data.user.name);
         await AsyncStorage.setItem('auth_token', data.token);
         setToken(data.token);
         setUser(data.user);
         return { success: true, user: data.user };
       } else {
-        return { success: false, error: data.error };
+        console.log('❌ Login falló:', data.error);
+        return { success: false, error: data.error || 'Error desconocido' };
       }
     } catch (error) {
-      return { success: false, error: 'Error de conexión. ¿Está el servidor corriendo?' };
+      console.error('🚨 Error en login:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
     }
   };
 
+   // 🆕 REGISTER MEJORADO
   const register = async (name: string, email: string, password: string, role: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      console.log('📝 Intentando registro para:', email, 'como', role);
+      
+      const data = await makeApiRequest<{
+        success: boolean;
+        user?: User;
+        token?: string;
+        error?: string;
+      }>('/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password, role }),
       });
 
-      const data = await response.json();
-      if (response.ok) {
+      if (data.success && data.token && data.user) {
+        console.log('✅ Registro exitoso para:', data.user.name);
         await AsyncStorage.setItem('auth_token', data.token);
         setToken(data.token);
         setUser(data.user);
         return { success: true, user: data.user };
       } else {
-        return { success: false, error: data.error };
+        console.log('❌ Registro falló:', data.error);
+        return { success: false, error: data.error || 'Error desconocido' };
       }
     } catch (error) {
-      return { success: false, error: 'Error de conexión. ¿Está el servidor corriendo?' };
+      console.error('🚨 Error en registro:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
     }
   };
 
   const logout = async (): Promise<void> => {
     try {
+      console.log('🚪 Cerrando sesión...');
       await AsyncStorage.removeItem('auth_token');
       setToken(null);
       setUser(null);
+      console.log('✅ Sesión cerrada correctamente');
     } catch (error) {
-      console.error('Error en logout:', error);
+      console.error('🚨 Error en logout:', error);
     }
   };
 
-  // Métodos de juegos existentes (mantenidos igual)
+  // 🆕 SAVE GAME PROGRESS MEJORADO
   const saveGameProgress = async (gameData: any) => {
     if (!token || !user) return { success: false, error: 'No autenticado' };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/games/save-progress`, {
+      console.log('💾 Guardando progreso del juego:', gameData.game_type);
+      
+      const data = await makeApiRequest('/games/save-progress', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ ...gameData, user_id: user.id }),
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, data } : { success: false, error: data.error };
+      console.log('✅ Progreso guardado exitosamente');
+      return { success: true, data };
     } catch (error) {
-      return { success: false, error: 'Error de conexión' };
+      console.error('🚨 Error guardando progreso:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
     }
   };
 
@@ -433,19 +550,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+   // 🆕 GET TITANIC WORDS MEJORADO
   const getActiveTitanicWords = async (difficulty: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/titanic/words/active/${difficulty}`, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
+      console.log('🎮 Obteniendo palabras del Titanic, dificultad:', difficulty);
+      
+      const data = await makeApiRequest<{
+        success: boolean;
+        words?: { word: string; hint: string; category: string; }[];
+        error?: string;
+      }>(`/titanic/words/active/${difficulty}`, {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`,
+        } : {},
       });
 
-      const data = await response.json();
-      return response.ok ? { success: true, words: data.words } : { success: false, error: data.error };
+      if (data.success) {
+        console.log(`✅ ${data.words?.length || 0} palabras obtenidas`);
+        return { success: true, words: data.words || [] };
+      } else {
+        return { success: false, error: data.error || 'Error obteniendo palabras' };
+      }
     } catch (error) {
-      return { success: false, error: 'Error de conexión' };
+      console.error('🚨 Error obteniendo palabras:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
     }
   };
 
@@ -630,7 +761,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     saveGameProgress,
     getGameProgress,
     getGameConfig,
-    
+    searchStudent,
+    getAvailableClassrooms,
+    studentSelfEnroll,
     // CRUD Titanic
     getTitanicWords,
     getTitanicStats,
@@ -680,3 +813,4 @@ export type {
   Classroom, ParentChildRelation, Student, TeacherDashboard, TitanicStats, User,
   WordEntry, WordFilters, WordInput
 };
+

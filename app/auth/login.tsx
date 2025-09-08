@@ -54,36 +54,52 @@ const LoginScreen = () => {
     return true;
   };
 
+// Reemplazar la función handleLogin completamente:
+
   const handleLogin = async () => {
-    if (!validateForm()) return;
+  if (!validateForm()) return;
 
-    setLoading(true);
-    try {
-      const result = await login(formData.email, formData.password);
+  setLoading(true);
+  try {
+    console.log('🔐 Iniciando proceso de login...');
+    const result = await login(formData.email, formData.password);
 
-      if (result.success) {
-        Alert.alert(
-          '¡Login Exitoso! 👋',
-          `Bienvenido ${result.user?.name}`,
-          [
-            {
-              text: 'Continuar', 
-              onPress: () => {
-                console.log('✅ Login exitoso, redirigiendo...');
-                router.replace('/(tabs)/' as any);
-              },
-            },
-          ]
-        );
-      } else {
-        Alert.alert('❌ Error de Login', result.error || 'Error desconocido');
+    if (result.success && result.user) {
+      console.log('✅ Login exitoso, navegando según rol...');
+      
+      // 🚀 NAVEGACIÓN BASADA EN ROL
+      switch (result.user.role) {
+        case 'docente':
+          console.log('👨‍🏫 Docente - navegando a teacher-dashboard');
+          router.replace('/(tabs)/teacher-dashboard' as any);
+          break;
+        case 'representante':
+          console.log('👨‍👩‍👧‍👦 Representante - navegando a parent-dashboard');
+          router.replace('/(tabs)/parent-dashboard' as any);
+          break;
+        case 'nino':
+          console.log('🧒 Niño - navegando a juegos');
+          router.replace('/(tabs)/' as any); // index para niños
+          break;
+        default:
+          console.log('🤷 Rol desconocido - navegando a pantalla por defecto');
+          router.replace('/(tabs)/' as any);
+          break;
       }
-    } catch (error) {
-      Alert.alert('Error', 'Ocurrió un error inesperado');
-    } finally {
-      setLoading(false);
+      
+      console.log(`🎉 Bienvenido ${result.user.name} (${result.user.role})`);
+      
+    } else {
+      console.log('❌ Login falló:', result.error);
+      Alert.alert('❌ Error de Login', result.error || 'Error desconocido');
     }
-  };
+  } catch (error) {
+    console.error('🚨 Error inesperado en login:', error);
+    Alert.alert('Error', 'Ocurrió un error inesperado');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const ABCBlock: React.FC<ABCBlockProps> = ({ letter, color, style }) => (
     <View style={[styles.abcBlock, { backgroundColor: color }, style]}>

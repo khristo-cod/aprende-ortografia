@@ -4,14 +4,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Student, useAuth } from '../../src/contexts/AuthContext';
 
@@ -119,6 +120,7 @@ export default function ParentDashboard() {
   const router = useRouter();
   const { 
     user, 
+    logout,
     isAuthenticated, 
     isRepresentante,
     getMyChildren 
@@ -154,6 +156,44 @@ export default function ParentDashboard() {
       color: "#9C27B0"
     }
   ];
+
+    const handleLogout = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        const confirmed = window.confirm(
+          `🚪 ¿Estás seguro que deseas cerrar sesión, ${user?.name}?`
+        );
+        
+        if (confirmed) {
+          console.log('🔄 Cerrando sesión...');
+          await logout();
+          console.log('✅ Sesión cerrada exitosamente');
+          router.replace('/auth/login' as any);
+        }
+      } else {
+        Alert.alert(
+          '🚪 Cerrar Sesión',
+          `¿Estás seguro que deseas salir, ${user?.name}?`,
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { 
+              text: 'Salir', 
+              style: 'destructive',
+              onPress: async () => {
+                console.log('🔄 Cerrando sesión...');
+                await logout();
+                console.log('✅ Sesión cerrada exitosamente');
+                router.replace('/auth/login' as any);
+              }
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error al cerrar sesión:', error);
+      Alert.alert('Error', 'No se pudo cerrar la sesión correctamente');
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated || !isRepresentante) {
@@ -252,6 +292,12 @@ export default function ParentDashboard() {
             <View style={styles.notificationBadge}>
               <Text style={styles.notificationCount}>2</Text>
             </View>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <MaterialIcons name="logout" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>
 
@@ -458,6 +504,16 @@ const styles = StyleSheet.create({
   },
   childrenSection: {
     marginBottom: 20,
+  },
+   logoutButton: {
+    backgroundColor: '#F44336',
+    padding: 12,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   childCard: {
     backgroundColor: '#FFF',

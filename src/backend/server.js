@@ -15,9 +15,31 @@ process.on('uncaughtException', (err) => {
   // No hacer process.exit() para ver exactamente dónde ocurre
 });
 
-// Middlewares
-app.use(cors());
-app.use(express.json());
+// 🆕 OPTIMIZACIONES PARA DISPOSITIVOS MÓVILES
+app.use(cors({
+  origin: '*', // Permitir todos los orígenes en desarrollo
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
+// 🆕 Aumentar límites para requests móviles
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 🆕 Middleware para logging de requests móviles
+app.use((req, res, next) => {
+  const start = Date.now();
+  const userAgent = req.get('User-Agent') || 'Unknown';
+  
+  console.log(`📱 ${req.method} ${req.url} - ${userAgent.includes('Expo') ? 'MÓVIL' : 'WEB'}`);
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`⏱️  ${req.method} ${req.url} - ${res.statusCode} (${duration}ms)`);
+  });
+  
+  next();
+});
 
 // Variable para controlar si el servidor ya está corriendo
 let serverInstance = null;
@@ -40,9 +62,85 @@ const authenticateToken = (req, res, next) => {
 
 // =================== RUTAS DE AUTENTICACIÓN ===================
 
+// 🆕 Endpoint específico para test de conectividad móvil
+app.get('/api/mobile-test', (req, res) => {
+  const userAgent = req.get('User-Agent') || 'Unknown';
+  res.json({
+    status: 'OK',
+    message: 'Conectividad móvil exitosa',
+    timestamp: new Date().toISOString(),
+    userAgent: userAgent,
+    ip: req.ip || req.connection.remoteAddress,
+    isMobile: userAgent.includes('Expo') || userAgent.includes('React Native')
+  });
+});
+
+// 🆕 OPTIMIZAR el endpoint de login para ser más rápido
+app.post('/api/auth/login', async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const { email, password } = req.body;
+    console.log(`🔐 Login attempt para: ${email}`);
+
+    if (!email || !password) {
+      console.log('❌ Login falló: campos faltantes');
+      return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+    }
+
+    // Buscar usuario - OPTIMIZADO con índice
+    const user = await getQuery(
+      'SELECT * FROM users WHERE email = ? OR name = ? LIMIT 1', 
+      [email, email]
+    );
+    
+    if (!user) {
+      console.log('❌ Login falló: usuario no encontrado');
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    // Verificar contraseña
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      console.log('❌ Login falló: contraseña incorrecta');
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    // Generar token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, name: user.name },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Login exitoso para ${user.name} en ${duration}ms`);
+
+    res.json({
+      success: true,
+      message: 'Login exitoso',
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role 
+      },
+      token
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`🚨 Error en login después de ${duration}ms:`, error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 🆕 OPTIMIZAR el endpoint de registro
 app.post('/api/auth/register', async (req, res) => {
+  const startTime = Date.now();
+  
   try {
     const { name, email, password, role } = req.body;
+    console.log(`📝 Registro attempt para: ${email} como ${role}`);
 
     // Validaciones
     if (!name || !email || !password || !role) {
@@ -53,9 +151,10 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Rol inválido' });
     }
 
-    // Verificar si el email ya existe
-    const existingUser = await getQuery('SELECT id FROM users WHERE email = ?', [email]);
+    // Verificar si el email ya existe - OPTIMIZADO
+    const existingUser = await getQuery('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
     if (existingUser) {
+      console.log('❌ Registro falló: email ya existe');
       return res.status(400).json({ error: 'El email ya está registrado' });
     }
 
@@ -75,6 +174,9 @@ app.post('/api/auth/register', async (req, res) => {
       { expiresIn: '30d' }
     );
 
+    const duration = Date.now() - startTime;
+    console.log(`✅ Registro exitoso para ${name} en ${duration}ms`);
+
     res.status(201).json({
       success: true,
       message: 'Usuario registrado exitosamente',
@@ -82,55 +184,8 @@ app.post('/api/auth/register', async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('Error en registro:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email y contraseña son requeridos' });
-    }
-
-    // Buscar usuario por email o nombre (para flexibilidad)
-    const user = await getQuery(
-      'SELECT * FROM users WHERE email = ? OR name = ?', 
-      [email, email]
-    );
-    
-    if (!user) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-    }
-
-    // Verificar contraseña
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-    }
-
-    // Generar token
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
-    res.json({
-      success: true,
-      message: 'Login exitoso',
-      user: { 
-        id: user.id, 
-        name: user.name, 
-        email: user.email, 
-        role: user.role 
-      },
-      token
-    });
-  } catch (error) {
-    console.error('Error en login:', error);
+    const duration = Date.now() - startTime;
+    console.error(`🚨 Error en registro después de ${duration}ms:`, error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -456,6 +511,248 @@ app.post('/api/titanic/words', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error creando palabra:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 🔍 AGREGAR al src/backend/server.js
+// Nuevo endpoint para buscar estudiantes por email
+
+// Agregar después de las rutas existentes:
+
+// =================== BÚSQUEDA DE ESTUDIANTES ===================
+
+// Buscar estudiante por email (para inscripciones)
+app.post('/api/users/search-student', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'docente') {
+      return res.status(403).json({ error: 'Solo docentes pueden buscar estudiantes' });
+    }
+
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email es requerido' });
+    }
+
+    // Buscar estudiante por email
+    const student = await getQuery(`
+      SELECT id, name, email, created_at 
+      FROM users 
+      WHERE email = ? AND role = 'nino' AND active = 1
+    `, [email.trim().toLowerCase()]);
+
+    if (!student) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'No se encontró un estudiante con ese email' 
+      });
+    }
+
+    // Verificar si ya está inscrito en alguna aula del docente
+    const existingEnrollment = await getQuery(`
+      SELECT c.name as classroom_name 
+      FROM student_enrollments se
+      JOIN classrooms c ON se.classroom_id = c.id
+      WHERE se.student_id = ? AND c.teacher_id = ? AND se.status = 'active'
+    `, [student.id, req.user.id]);
+
+    if (existingEnrollment) {
+      return res.status(400).json({
+        success: false,
+        error: `El estudiante ya está inscrito en: ${existingEnrollment.classroom_name}`
+      });
+    }
+
+    res.json({
+      success: true,
+      student: {
+        id: student.id,
+        name: student.name,
+        email: student.email,
+        created_at: student.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Error buscando estudiante:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// =================== MEJORAR INSCRIPCIÓN DE ESTUDIANTES ===================
+
+// Actualizar el endpoint existente de inscripción para mejor feedback
+app.post('/api/classrooms/:classroomId/students', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'docente') {
+      return res.status(403).json({ error: 'Solo docentes pueden inscribir estudiantes' });
+    }
+
+    const { classroomId } = req.params;
+    const { student_id } = req.body;
+
+    // Verificar que el aula pertenece al docente
+    const classroom = await getQuery(`
+      SELECT * FROM classrooms 
+      WHERE id = ? AND teacher_id = ? AND active = 1
+    `, [classroomId, req.user.id]);
+    
+    if (!classroom) {
+      return res.status(404).json({ error: 'Aula no encontrada' });
+    }
+
+    // Verificar que el usuario es un estudiante
+    const student = await getQuery(`
+      SELECT * FROM users 
+      WHERE id = ? AND role = 'nino' AND active = 1
+    `, [student_id]);
+    
+    if (!student) {
+      return res.status(400).json({ error: 'Estudiante no encontrado' });
+    }
+
+    // Verificar capacidad del aula
+    const currentCount = await getQuery(`
+      SELECT COUNT(*) as count 
+      FROM student_enrollments 
+      WHERE classroom_id = ? AND status = 'active'
+    `, [classroomId]);
+
+    if (currentCount.count >= classroom.max_students) {
+      return res.status(400).json({ 
+        error: `El aula está llena (${classroom.max_students}/${classroom.max_students})` 
+      });
+    }
+
+    // Verificar si ya está inscrito
+    const existingEnrollment = await getQuery(`
+      SELECT * FROM student_enrollments 
+      WHERE student_id = ? AND classroom_id = ?
+    `, [student_id, classroomId]);
+
+    if (existingEnrollment) {
+      if (existingEnrollment.status === 'active') {
+        return res.status(400).json({ error: 'El estudiante ya está inscrito en esta aula' });
+      } else {
+        // Reactivar inscripción
+        await runQuery(`
+          UPDATE student_enrollments 
+          SET status = 'active', enrollment_date = CURRENT_TIMESTAMP 
+          WHERE id = ?
+        `, [existingEnrollment.id]);
+      }
+    } else {
+      // Crear nueva inscripción
+      await runQuery(`
+        INSERT INTO student_enrollments (student_id, classroom_id, status, enrollment_date) 
+        VALUES (?, ?, 'active', CURRENT_TIMESTAMP)
+      `, [student_id, classroomId]);
+    }
+
+    res.json({
+      success: true,
+      message: `${student.name} ha sido inscrito exitosamente en ${classroom.name}`
+    });
+  } catch (error) {
+    console.error('Error inscribiendo estudiante:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// =================== ESTUDIANTE PUEDE VER AULAS DISPONIBLES ===================
+
+// Obtener aulas disponibles para inscripción (para estudiantes)
+app.get('/api/classrooms/available', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'nino') {
+      return res.status(403).json({ error: 'Solo estudiantes pueden ver aulas disponibles' });
+    }
+
+    // Obtener aulas donde el estudiante NO está inscrito
+    const availableClassrooms = await allQuery(`
+      SELECT 
+        c.id,
+        c.name,
+        c.grade_level,
+        c.section,
+        c.school_year,
+        c.max_students,
+        u.name as teacher_name,
+        COUNT(se.student_id) as current_students
+      FROM classrooms c
+      JOIN users u ON c.teacher_id = u.id
+      LEFT JOIN student_enrollments se ON c.id = se.classroom_id AND se.status = 'active'
+      WHERE c.active = 1 
+        AND c.id NOT IN (
+          SELECT classroom_id 
+          FROM student_enrollments 
+          WHERE student_id = ? AND status = 'active'
+        )
+      GROUP BY c.id
+      HAVING current_students < c.max_students
+      ORDER BY c.school_year DESC, c.grade_level, c.section
+    `, [req.user.id]);
+
+    res.json({
+      success: true,
+      classrooms: availableClassrooms
+    });
+  } catch (error) {
+    console.error('Error obteniendo aulas disponibles:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Estudiante se inscribe en un aula
+app.post('/api/student/enroll/:classroomId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'nino') {
+      return res.status(403).json({ error: 'Solo estudiantes pueden inscribirse' });
+    }
+
+    const { classroomId } = req.params;
+
+    // Verificar que el aula existe y tiene espacio
+    const classroom = await getQuery(`
+      SELECT c.*, u.name as teacher_name,
+        COUNT(se.student_id) as current_students
+      FROM classrooms c
+      JOIN users u ON c.teacher_id = u.id
+      LEFT JOIN student_enrollments se ON c.id = se.classroom_id AND se.status = 'active'
+      WHERE c.id = ? AND c.active = 1
+      GROUP BY c.id
+    `, [classroomId]);
+
+    if (!classroom) {
+      return res.status(404).json({ error: 'Aula no encontrada' });
+    }
+
+    if (classroom.current_students >= classroom.max_students) {
+      return res.status(400).json({ error: 'El aula está llena' });
+    }
+
+    // Verificar si ya está inscrito
+    const existingEnrollment = await getQuery(`
+      SELECT * FROM student_enrollments 
+      WHERE student_id = ? AND status = 'active'
+    `, [req.user.id]);
+
+    if (existingEnrollment) {
+      return res.status(400).json({ error: 'Ya estás inscrito en un aula' });
+    }
+
+    // Inscribir al estudiante
+    await runQuery(`
+      INSERT INTO student_enrollments (student_id, classroom_id, status, enrollment_date) 
+      VALUES (?, ?, 'active', CURRENT_TIMESTAMP)
+    `, [req.user.id, classroomId]);
+
+    res.json({
+      success: true,
+      message: `Te has inscrito exitosamente en ${classroom.name} con ${classroom.teacher_name}`
+    });
+  } catch (error) {
+    console.error('Error en auto-inscripción:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

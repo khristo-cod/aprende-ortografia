@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, logout, isAuthenticated, saveGameProgress } = useAuth();
 
+  
   const irAlJuego = async () => {
     if (isAuthenticated) {
       await saveGameProgress({
@@ -65,22 +66,6 @@ export default function HomeScreen() {
       });
     }
     router.push('/(tabs)/titanic' as any);
-  };
-
-  const irAHangman = async () => {
-    if (isAuthenticated) {
-      await saveGameProgress({
-        game_type: 'ahorcado',
-        score: 0,
-        total_questions: 0,
-        correct_answers: 0,
-        incorrect_answers: 0,
-        time_spent: 0,
-        completed: false,
-        session_data: { action: 'game_started', timestamp: Date.now() }
-      });
-    }
-    router.push('/(tabs)/hangman' as any);
   };
 
   // FUNCIÓN DE LOGOUT COMPATIBLE WEB + MOBILE
@@ -138,18 +123,6 @@ export default function HomeScreen() {
 
   const goToAuth = () => {
     router.push('/auth/welcome' as any);
-  };
-
-  const goToTitanicAdmin = async () => {
-    if (isAuthenticated && user?.role === 'docente') {
-      router.push('/(tabs)/titanic-admin' as any);
-    } else {
-      Alert.alert(
-        '🔒 Acceso Denegado',
-        'Esta función es solo para docentes administradores.',
-        [{ text: 'OK' }]
-      );
-    }
   };
 
   return (
@@ -213,25 +186,6 @@ export default function HomeScreen() {
           </Text>
         </ThemedView>
       </CardButton>
-
-      <CardButton onPress={irAHangman}>
-        <ThemedView style={styles.stepContainer}>
-          <ThemedText type="subtitle">Ahorcado</ThemedText>
-          <Text>"¡Adivina la palabra y salva al ahorcado! ¿Te atreves?" ⛓️🤔</Text>
-        </ThemedView>
-      </CardButton>
-
-      {/* PANEL DE ADMINISTRACIÓN - Solo para docentes */}
-      {isAuthenticated && user?.role === 'docente' && (
-        <CardButton onPress={goToTitanicAdmin}>
-          <ThemedView style={[styles.stepContainer, styles.adminContainer]}>
-            <ThemedText type="subtitle" style={styles.adminTitle}>🛠️ Administrador</ThemedText>
-            <Text style={styles.adminDescription}>
-              "Gestiona palabras y configuraciones del Titanic" ⚙️📝
-            </Text>
-          </ThemedView>
-        </CardButton>
-      )}
 
       {/* Información adicional */}
       <View style={styles.infoCard}>

@@ -87,11 +87,14 @@ const RegisterScreen = () => {
     return true;
   };
 
+  // Reemplazar la función handleRegister completamente:
+
   const handleRegister = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
     try {
+      console.log('📝 Iniciando proceso de registro...');
       const result = await register(
         formData.name,
         formData.email,
@@ -99,24 +102,37 @@ const RegisterScreen = () => {
         formData.role
       );
 
-      if (result.success) {
-        Alert.alert(
-          '¡Registro Exitoso! 🎉',
-          `Bienvenido ${result.user?.name}`,
-          [
-            {
-              text: 'Continuar',
-              onPress: () => {
-                console.log('✅ Registro exitoso, redirigiendo...');
-                router.replace('/(tabs)/' as any);
-              },
-            },
-          ]
-        );
+      if (result.success && result.user) {
+        console.log('✅ Registro exitoso, navegando según rol...');
+        
+        // 🚀 NAVEGACIÓN BASADA EN ROL
+        switch (result.user.role) {
+          case 'docente':
+            console.log('👨‍🏫 Docente registrado - navegando a teacher-dashboard');
+            router.replace('/(tabs)/teacher-dashboard' as any);
+            break;
+          case 'representante':
+            console.log('👨‍👩‍👧‍👦 Representante registrado - navegando a parent-dashboard');
+            router.replace('/(tabs)/parent-dashboard' as any);
+            break;
+          case 'nino':
+            console.log('🧒 Niño registrado - navegando a juegos');
+            router.replace('/(tabs)/' as any); // index para niños
+            break;
+          default:
+            console.log('🤷 Rol desconocido - navegando a pantalla por defecto');
+            router.replace('/(tabs)/' as any);
+            break;
+        }
+        
+        console.log(`🎉 Cuenta creada para ${result.user.name} (${result.user.role})`);
+        
       } else {
+        console.log('❌ Registro falló:', result.error);
         Alert.alert('❌ Error de Registro', result.error || 'Error desconocido');
       }
     } catch (error) {
+      console.error('🚨 Error inesperado en registro:', error);
       Alert.alert('Error', 'Ocurrió un error inesperado');
     } finally {
       setLoading(false);
