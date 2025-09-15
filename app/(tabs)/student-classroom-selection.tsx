@@ -1,4 +1,4 @@
-// app/(tabs)/student-classroom-selection.tsx - CORREGIDO
+// app/(tabs)/student-classroom-selection.tsx - COMPLETAMENTE CORREGIDO
 
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,7 +29,7 @@ interface AvailableClassroom {
 
 export default function StudentClassroomSelection() {
   const router = useRouter();
-  const { user, isNino, getAvailableClassrooms, studentSelfEnroll } = useAuth();
+  const { user, isNino, getAvailableClassrooms, studentSelfEnroll, checkStudentEnrollmentStatus } = useAuth();
   const [classrooms, setClassrooms] = useState<AvailableClassroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -37,37 +37,35 @@ export default function StudentClassroomSelection() {
   const [currentEnrollment, setCurrentEnrollment] = useState<any>(null);
 
   useEffect(() => {
-  const checkAndLoad = async () => {
-    if (!isNino) {
-      Alert.alert('Acceso Denegado', 'Esta pantalla es solo para estudiantes');
-      setTimeout(() => router.back(), 100);
-      return;
-    }
-
-    // 🆕 VERIFICAR INSCRIPCIÓN ACTUAL PRIMERO
-    try {
-      const enrollmentResult = await checkStudentEnrollmentStatus();
-      
-      if (enrollmentResult.success && enrollmentResult.isEnrolled) {
-        setCurrentEnrollment(enrollmentResult.classroom);
-        console.log('✅ Estudiante ya inscrito en:', enrollmentResult.classroom?.name);
-        // No cargar aulas disponibles si ya está inscrito
-        setLoading(false);
+    const checkAndLoad = async () => {
+      if (!isNino) {
+        Alert.alert('Acceso Denegado', 'Esta pantalla es solo para estudiantes');
+        setTimeout(() => router.back(), 100);
         return;
       }
-    } catch (error) {
-      console.log('Error verificando inscripción:', error);
-    }
 
-    // Solo cargar aulas disponibles si NO está inscrito
-    loadAvailableClassrooms();
-  };
+      // 🆕 VERIFICAR INSCRIPCIÓN ACTUAL PRIMERO
+      try {
+        const enrollmentResult = await checkStudentEnrollmentStatus();
+        
+        if (enrollmentResult.success && enrollmentResult.isEnrolled) {
+          setCurrentEnrollment(enrollmentResult.classroom);
+          console.log('✅ Estudiante ya inscrito en:', enrollmentResult.classroom?.name);
+          // No cargar aulas disponibles si ya está inscrito
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.log('Error verificando inscripción:', error);
+      }
 
-  const timer = setTimeout(checkAndLoad, 100);
-  return () => clearTimeout(timer);
-}, [isNino]);
+      // Solo cargar aulas disponibles si NO está inscrito
+      loadAvailableClassrooms();
+    };
 
-// 🔧 TAMBIÉN ACTUALIZAR la función handleEnrollInClassroom:
+    const timer = setTimeout(checkAndLoad, 100);
+    return () => clearTimeout(timer);
+  }, [isNino]);
 
   const loadAvailableClassrooms = async () => {
     try {
@@ -93,53 +91,53 @@ export default function StudentClassroomSelection() {
     setRefreshing(false);
   };
 
- const handleEnrollInClassroom = async (classroom: AvailableClassroom) => {
-  Alert.alert(
-    'Confirmar Inscripción',
-    `¿Deseas inscribirte en:\n\n${classroom.name}\n${classroom.grade_level} - Sección ${classroom.section}\nProfesor: ${classroom.teacher_name}`,
-    [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Inscribirme',
-        onPress: async () => {
-          setEnrolling(classroom.id);
-          try {
-            const result = await studentSelfEnroll(classroom.id);
-            
-            if (result.success) {
-              Alert.alert(
-                '¡Inscripción Exitosa! 🎉',
-                result.message || 'Te has inscrito correctamente',
-                [
-                  {
-                    text: 'Continuar',
-                    onPress: () => {
-                      // 🔧 Navegación más segura
-                      setTimeout(() => {
-                        try {
-                          router.replace('/(tabs)/' as any); // Ir a juegos
-                        } catch (error) {
-                          console.log('Error navegando:', error);
-                        }
-                      }, 100);
+  const handleEnrollInClassroom = async (classroom: AvailableClassroom) => {
+    Alert.alert(
+      'Confirmar Inscripción',
+      `¿Deseas inscribirte en:\n\n${classroom.name}\n${classroom.grade_level} - Sección ${classroom.section}\nProfesor: ${classroom.teacher_name}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Inscribirme',
+          onPress: async () => {
+            setEnrolling(classroom.id);
+            try {
+              const result = await studentSelfEnroll(classroom.id);
+              
+              if (result.success) {
+                Alert.alert(
+                  '¡Inscripción Exitosa! 🎉',
+                  result.message || 'Te has inscrito correctamente',
+                  [
+                    {
+                      text: 'Continuar',
+                      onPress: () => {
+                        // 🔧 Navegación más segura
+                        setTimeout(() => {
+                          try {
+                            router.replace('/(tabs)/' as any); // Ir a juegos
+                          } catch (error) {
+                            console.log('Error navegando:', error);
+                          }
+                        }, 100);
+                      }
                     }
-                  }
-                ]
-              );
-            } else {
-              Alert.alert('Error', result.error || 'No se pudo completar la inscripción');
+                  ]
+                );
+              } else {
+                Alert.alert('Error', result.error || 'No se pudo completar la inscripción');
+              }
+            } catch (error) {
+              console.error('Error en inscripción:', error);
+              Alert.alert('Error', 'Error de conexión');
+            } finally {
+              setEnrolling(null);
             }
-          } catch (error) {
-            console.error('Error en inscripción:', error);
-            Alert.alert('Error', 'Error de conexión');
-          } finally {
-            setEnrolling(null);
           }
         }
-      }
-    ]
-  );
-};
+      ]
+    );
+  };
 
   const renderClassroomItem = ({ item }: { item: AvailableClassroom }) => (
     <View style={styles.classroomCard}>
@@ -194,6 +192,36 @@ export default function StudentClassroomSelection() {
     </View>
   );
 
+  // 🆕 RENDERIZAR INFORMACIÓN DE INSCRIPCIÓN ACTUAL
+  const renderCurrentEnrollment = () => (
+    <View style={styles.enrolledContainer}>
+      <View style={styles.enrolledCard}>
+        <View style={styles.enrolledHeader}>
+          <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
+          <Text style={styles.enrolledTitle}>¡Ya estás inscrito!</Text>
+        </View>
+        
+        <View style={styles.enrolledInfo}>
+          <Text style={styles.enrolledClassName}>{currentEnrollment.name}</Text>
+          <Text style={styles.enrolledDetails}>
+            {currentEnrollment.grade_level} - Sección {currentEnrollment.section}
+          </Text>
+          <Text style={styles.enrolledTeacher}>
+            Profesor: {currentEnrollment.teacher_name}
+          </Text>
+          <Text style={styles.enrolledYear}>{currentEnrollment.school_year}</Text>
+        </View>
+
+        <TouchableOpacity 
+          style={styles.continueButton}
+          onPress={() => router.replace('/(tabs)/' as any)}
+        >
+          <Text style={styles.continueButtonText}>Continuar a Juegos</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
       <LinearGradient colors={['#E8F5E8', '#C8E6C9']} style={styles.container}>
@@ -224,28 +252,32 @@ export default function StudentClassroomSelection() {
       <View style={styles.studentInfo}>
         <Text style={styles.welcomeText}>¡Hola {user?.name}! 👋</Text>
         <Text style={styles.instructionText}>
-          Selecciona el aula en la que quieres estudiar
+          {currentEnrollment ? 'Tu inscripción actual:' : 'Selecciona el aula en la que quieres estudiar'}
         </Text>
       </View>
 
-      {/* Lista de aulas */}
-      <FlatList
-        data={classrooms}
-        renderItem={renderClassroomItem}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialIcons name="school" size={64} color="#CCC" />
-            <Text style={styles.emptyText}>No hay aulas disponibles</Text>
-            <Text style={styles.emptySubtext}>
-              Contacta a tu profesor para que te inscriba
-            </Text>
-          </View>
-        }
-        showsVerticalScrollIndicator={false}
-      />
+      {/* Mostrar inscripción actual O lista de aulas */}
+      {currentEnrollment ? (
+        renderCurrentEnrollment()
+      ) : (
+        <FlatList
+          data={classrooms}
+          renderItem={renderClassroomItem}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <MaterialIcons name="school" size={64} color="#CCC" />
+              <Text style={styles.emptyText}>No hay aulas disponibles</Text>
+              <Text style={styles.emptySubtext}>
+                Contacta a tu profesor para que te inscriba
+              </Text>
+            </View>
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </LinearGradient>
   );
 }
@@ -415,5 +447,69 @@ const styles = StyleSheet.create({
     color: '#CCC',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // 🆕 ESTILOS PARA INSCRIPCIÓN ACTUAL
+  enrolledContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
+  enrolledCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  enrolledHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  enrolledTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginTop: 16,
+  },
+  enrolledInfo: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  enrolledClassName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2196F3',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  enrolledDetails: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 4,
+  },
+  enrolledTeacher: {
+    fontSize: 16,
+    color: '#4CAF50',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  enrolledYear: {
+    fontSize: 14,
+    color: '#999',
+  },
+  continueButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 25,
+  },
+  continueButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

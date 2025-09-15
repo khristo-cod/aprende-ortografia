@@ -1505,4 +1505,118 @@ app.get('/api/dashboard/teacher', authenticateToken, async (req, res) => {
   }
 });
 
+// Verificar estado de inscripción del estudiante actual
+app.get('/api/student/enrollment-status', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'nino') {
+      return res.status(403).json({ 
+        success: false,
+        error: 'Solo estudiantes pueden verificar su estado de inscripción' 
+      });
+    }
+
+    console.log(`🔍 Verificando inscripción para estudiante ID: ${req.user.id}`);
+
+    // Buscar inscripción activa del estudiante
+    const enrollment = await getQuery(`
+      SELECT 
+        se.id, se.enrollment_date, se.status,
+        c.id as classroom_id, c.name as classroom_name,
+        c.grade_level, c.section, c.school_year,
+        u.name as teacher_name, u.email as teacher_email
+      FROM student_enrollments se
+      JOIN classrooms c ON se.classroom_id = c.id
+      JOIN users u ON c.teacher_id = u.id
+      WHERE se.student_id = ? AND se.status = 'active' AND c.active = 1
+      LIMIT 1
+    `, [req.user.id]);
+
+    if (enrollment) {
+      console.log(`✅ Estudiante inscrito en: ${enrollment.classroom_name}`);
+      res.json({
+        success: true,
+        isEnrolled: true,
+        classroom: {
+          id: enrollment.classroom_id,
+          name: enrollment.classroom_name,
+          grade_level: enrollment.grade_level,
+          section: enrollment.section,
+          school_year: enrollment.school_year,
+          teacher_name: enrollment.teacher_name,
+          teacher_email: enrollment.teacher_email,
+          enrollment_date: enrollment.enrollment_date
+        }
+      });
+    } else {
+      console.log(`❌ Estudiante no inscrito en ninguna aula`);
+      res.json({
+        success: true,
+        isEnrolled: false,
+        classroom: null
+      });
+    }
+  } catch (error) {
+    console.error('🚨 Error verificando inscripción:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error interno del servidor' 
+    });
+  }
+});
+
+// =================== ENDPOINT MEJORADO: HEALTH CHECK CON MÁS INFO ===================
+
+// Reemplazar el health check existente por esta versión mejorada
+app.get('/api/health', (req, res) => {
+  const uptime = process.uptime();
+  const memoryUsage = process.memoryUsage();
+  
+  res.json({ 
+    status: 'OK', 
+    message: 'Servidor de Ortografía funcionando correctamente',
+    timestamp: new Date().toISOString(),
+    uptime: `${Math.floor(uptime / 60)} minutos`,
+    memory: {
+      rss: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
+      heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`
+    },
+    endpoints: {
+      auth: '/api/auth/login',
+      games: '/api/games/save-progress',
+      classrooms: '/api/classrooms/my-classrooms',
+      titanic: '/api/titanic/words',
+      enrollment: '/api/student/enrollment-status'
+    }
+  });
+});
+
+// =================== ENDPOINT PARA DEBUGGING DE CONECTIVIDAD MÓVIL ===================
+
+// Test específico para conectividad móvil
+app.get('/api/mobile-connectivity-test', (req, res) => {
+  const userAgent = req.get('User-Agent') || 'Unknown';
+  const clientIP = req.ip || req.connection.remoteAddress || 'Unknown';
+  
+  console.log(`📱 Test de conectividad móvil desde: ${clientIP}`);
+  console.log(`📱 User Agent: ${userAgent}`);
+  
+  res.json({
+    success: true,
+    message: 'Conectividad móvil funcionando correctamente',
+    clientInfo: {
+      ip: clientIP,
+      userAgent: userAgent,
+      isMobile: userAgent.includes('Expo') || userAgent.includes('React Native'),
+      isAndroid: userAgent.includes('Android'),
+      isIOS: userAgent.includes('iOS') || userAgent.includes('iPhone'),
+      timestamp: new Date().toISOString()
+    },
+    serverInfo: {
+      platform: process.platform,
+      nodeVersion: process.version,
+      serverTime: new Date().toISOString()
+    }
+  });
+});
+
 module.exports = { app, startServer };

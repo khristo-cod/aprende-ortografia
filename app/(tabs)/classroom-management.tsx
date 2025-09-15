@@ -1,4 +1,5 @@
-// app/(tabs)/classroom-management.tsx - Gestión de Aulas CORREGIDO
+// app/(tabs)/classroom-management.tsx - ARCHIVO COMPLETO Y CORREGIDO
+
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -71,14 +72,15 @@ export default function ClassroomManagement() {
   const router = useRouter();
   const { 
     user, 
-    token,
     isAuthenticated, 
     isDocente,
     getMyClassrooms, 
     createClassroom,
     getClassroomStudents,
     enrollStudent,
-    API_BASE_URL
+    searchStudent,
+    transferStudent,
+    unenrollStudent,
   } = useAuth();
 
   // Estados principales
@@ -109,22 +111,11 @@ export default function ClassroomManagement() {
   const [enrollingStudent, setEnrollingStudent] = useState(false);
   const [selectedClassroomForEnrollment, setSelectedClassroomForEnrollment] = useState<Classroom | null>(null);
 
-  // Función para buscar estudiante por email
+  // Función local para buscar estudiante
   const searchStudentByEmail = async (email: string) => {
-    if (!token) return { success: false, error: 'No autenticado' };
-
     try {
-      const response = await fetch(`${API_BASE_URL}/users/search-student`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-      return data;
+      const result = await searchStudent(email);
+      return result;
     } catch (error) {
       return { 
         success: false, 
@@ -133,146 +124,7 @@ export default function ClassroomManagement() {
     }
   };
 
-  // Función para inscribir estudiante en aula
-  const enrollStudentInClassroom = async () => {
-  if (!studentEmail.trim() || !selectedClassroomForEnrollment) {
-    Alert.alert('Error', 'Ingresa el email del estudiante');
-    return;
-  }
-
-  setEnrollingStudent(true);
-  try {
-    // Primero buscar al estudiante por email
-    const searchResult = await searchStudentByEmail(studentEmail.trim());
-    
-    if (!searchResult.success || !searchResult.student) {
-      Alert.alert('Error', searchResult.error || 'Estudiante no encontrado');
-      return;
-    }
-
-    // Inscribir al estudiante
-    const result = await enrollStudent(selectedClassroomForEnrollment.id, searchResult.student.id);
-    
-    if (result.success) {
-      Alert.alert(
-        'Estudiante Inscrito',
-        `${searchResult.student.name} ha sido inscrito en ${selectedClassroomForEnrollment.name}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setShowStudentModal(false);
-              setStudentEmail('');
-              loadClassrooms();
-            }
-          }
-        ]
-      );
-    } else {
-      // 🆕 MANEJO ESPECÍFICO PARA ESTUDIANTE YA INSCRITO
-      if (result.error?.includes('ya está inscrito')) {
-        Alert.alert(
-          'Estudiante Ya Inscrito',
-          result.error,
-          [
-            { text: 'Entendido', style: 'cancel' },
-            {
-              text: 'Ver Detalles',
-              onPress: () => {
-                // Mostrar información adicional si está disponible
-                const details = result.details;
-                if (details) {
-                  Alert.alert(
-                    'Detalles de Inscripción',
-                    `Estudiante: ${searchResult.student.name}\nAula actual: ${details.currentClassroom}\nProfesor: ${details.currentTeacher}`,
-                    [
-                      { text: 'Cerrar' },
-                      {
-                        text: 'Transferir Estudiante',
-                        onPress: () => showTransferDialog(searchResult.student, details)
-                      }
-                    ]
-                  );
-                }
-              }
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Error', result.error || 'No se pudo inscribir al estudiante');
-      }
-    }
-  } catch (error) {
-    console.error('Error inscribiendo estudiante:', error);
-    Alert.alert('Error', 'Ocurrió un error inesperado');
-  } finally {
-    setEnrollingStudent(false);
-  }
-};
-
-// 🆕 NUEVA FUNCIÓN: Mostrar diálogo de transferencia
-const showTransferDialog = (student: any, currentDetails: any) => {
-  Alert.alert(
-    'Transferir Estudiante',
-    `¿Deseas transferir a ${student.name} desde "${currentDetails.currentClassroom}" a "${selectedClassroomForEnrollment?.name}"?\n\nEsta acción desinscribirá al estudiante de su aula actual.`,
-    [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Transferir',
-        style: 'destructive',
-        onPress: () => transferStudent(student.id, currentDetails.classroomId)
-      }
-    ]
-  );
-};
-
-// 🆕 NUEVA FUNCIÓN: Transferir estudiante
-const transferStudent = async (studentId: number, fromClassroomId: number) => {
-  if (!selectedClassroomForEnrollment) return;
-
-  try {
-    setEnrollingStudent(true);
-    
-    // Llamar al nuevo endpoint de transferencia
-    const response = await fetch(`${API_BASE_URL}/students/${studentId}/transfer/${selectedClassroomForEnrollment.id}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        reason: `Transferido por ${user?.name} desde classroom-management`
-      }),
-    });
-
-    const result = await response.json();
-    
-    if (result.success) {
-      Alert.alert(
-        'Transferencia Exitosa',
-        result.message,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setShowStudentModal(false);
-              setStudentEmail('');
-              loadClassrooms();
-            }
-          }
-        ]
-      );
-    } else {
-      Alert.alert('Error', result.error || 'No se pudo transferir al estudiante');
-    }
-  } catch (error) {
-    console.error('Error transfiriendo estudiante:', error);
-    Alert.alert('Error', 'Ocurrió un error inesperado');
-  } finally {
-    setEnrollingStudent(false);
-  }
-};
-
+  // Verificar permisos de administrador
   useEffect(() => {
     if (!isAuthenticated || !isDocente) {
       Alert.alert(
@@ -382,6 +234,207 @@ const transferStudent = async (studentId: number, fromClassroomId: number) => {
     router.push(`/(tabs)/classroom-progress?id=${classroom.id}&name=${encodeURIComponent(classroom.name)}` as any);
   };
 
+  // Función para inscribir estudiante en aula
+  const enrollStudentInClassroom = async () => {
+    if (!studentEmail.trim() || !selectedClassroomForEnrollment) {
+      Alert.alert('Error', 'Ingresa el email del estudiante');
+      return;
+    }
+
+    setEnrollingStudent(true);
+    try {
+      // Primero buscar al estudiante por email
+      const searchResult = await searchStudentByEmail(studentEmail.trim());
+      
+      if (!searchResult.success || !searchResult.student) {
+        Alert.alert('Error', searchResult.error || 'Estudiante no encontrado');
+        return;
+      }
+
+      // Inscribir al estudiante
+      const result = await enrollStudent(selectedClassroomForEnrollment.id, searchResult.student.id);
+      
+      if (result.success) {
+        Alert.alert(
+          'Estudiante Inscrito',
+          `${searchResult.student.name} ha sido inscrito en ${selectedClassroomForEnrollment.name}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setShowStudentModal(false);
+                setStudentEmail('');
+                loadClassrooms();
+              }
+            }
+          ]
+        );
+      } else {
+        // Manejo específico para estudiante ya inscrito
+        if (result.error?.includes('ya está inscrito')) {
+          Alert.alert(
+            'Estudiante Ya Inscrito',
+            result.error,
+            [
+              { text: 'Entendido', style: 'cancel' },
+              {
+                text: 'Ver Detalles',
+                onPress: () => {
+                  const details = (result as any).details;
+                  if (details) {
+                    Alert.alert(
+                      'Detalles de Inscripción',
+                      `Estudiante: ${searchResult.student.name}\nAula actual: ${details.currentClassroom}\nProfesor: ${details.currentTeacher}`,
+                      [
+                        { text: 'Cerrar' },
+                        {
+                          text: 'Transferir Estudiante',
+                          onPress: () => showTransferDialog(searchResult.student, details)
+                        }
+                      ]
+                    );
+                  }
+                }
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Error', result.error || 'No se pudo inscribir al estudiante');
+        }
+      }
+    } catch (error) {
+      console.error('Error inscribiendo estudiante:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado');
+    } finally {
+      setEnrollingStudent(false);
+    }
+  };
+
+  // Función para mostrar diálogo de transferencia
+  const showTransferDialog = (student: any, currentDetails: any) => {
+    Alert.alert(
+      'Transferir Estudiante',
+      `¿Deseas transferir a ${student.name} desde "${currentDetails.currentClassroom}" a "${selectedClassroomForEnrollment?.name}"?\n\nEsta acción desinscribirá al estudiante de su aula actual.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Transferir',
+          style: 'destructive',
+          onPress: () => transferStudentToNewClassroom(student.id, currentDetails.classroomId)
+        }
+      ]
+    );
+  };
+
+  // Función para transferir estudiante
+  const transferStudentToNewClassroom = async (studentId: number, fromClassroomId: number) => {
+    if (!selectedClassroomForEnrollment) return;
+
+    try {
+      setEnrollingStudent(true);
+      
+      const result = await transferStudent(studentId, selectedClassroomForEnrollment.id, `Transferido por ${user?.name} desde classroom-management`);
+      
+      if (result.success) {
+        Alert.alert(
+          'Transferencia Exitosa',
+          result.message,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setShowStudentModal(false);
+                setStudentEmail('');
+                loadClassrooms();
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'No se pudo transferir al estudiante');
+      }
+    } catch (error) {
+      console.error('Error transfiriendo estudiante:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado');
+    } finally {
+      setEnrollingStudent(false);
+    }
+  };
+
+  // Renderizar item de estudiante con opción de desinscribir
+  const renderStudentItem = ({ item }: { item: Student }) => (
+    <View style={styles.studentCard}>
+      <View style={styles.studentInfo}>
+        <Text style={styles.studentName}>{item.name}</Text>
+        <Text style={styles.studentEmail}>{item.email}</Text>
+        <Text style={styles.studentStats}>
+          Juegos: {item.total_games_played} | Promedio: {Math.round(item.average_score || 0)}
+        </Text>
+      </View>
+      <View style={styles.studentActions}>
+        <TouchableOpacity 
+          style={styles.miniActionButton}
+          onPress={() => Alert.alert('Progreso', `Ver progreso detallado de ${item.name}`)}
+        >
+          <MaterialIcons name="trending-up" size={20} color="#4CAF50" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.miniActionButton, { backgroundColor: '#FFEBEE' }]}
+          onPress={() => showUnenrollDialog(item)}
+        >
+          <MaterialIcons name="person-remove" size={20} color="#F44336" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // Función para desinscribir estudiante
+  const showUnenrollDialog = (student: Student) => {
+    Alert.alert(
+      'Desinscribir Estudiante',
+      `¿Estás seguro de que deseas desinscribir a ${student.name} de esta aula?\n\nEl estudiante podrá inscribirse en otra aula después.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desinscribir',
+          style: 'destructive',
+          onPress: () => unenrollStudentFromClassroom(student.id, student.name)
+        }
+      ]
+    );
+  };
+
+  const unenrollStudentFromClassroom = async (studentId: number, studentName: string) => {
+    try {
+      const result = await unenrollStudent(studentId, `Desinscrito por ${user?.name} desde classroom-management`);
+      
+      if (result.success) {
+        Alert.alert(
+          'Estudiante Desinscrito',
+          result.message,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Recargar lista de estudiantes si el modal está abierto
+                if (selectedClassroom) {
+                  handleManageStudents(selectedClassroom);
+                }
+                loadClassrooms();
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'No se pudo desinscribir al estudiante');
+      }
+    } catch (error) {
+      console.error('Error desinscribiendo estudiante:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado');
+    }
+  };
+
   const renderClassroomItem = ({ item }: { item: Classroom }) => (
     <ClassroomCard
       classroom={item}
@@ -390,92 +443,6 @@ const transferStudent = async (studentId: number, fromClassroomId: number) => {
       onEnrollStudent={handleEnrollStudent}
     />
   );
-
-  // Modificar renderStudentItem para agregar opción de desinscribir:
-const renderStudentItem = ({ item }: { item: Student }) => (
-  <View style={styles.studentCard}>
-    <View style={styles.studentInfo}>
-      <Text style={styles.studentName}>{item.name}</Text>
-      <Text style={styles.studentEmail}>{item.email}</Text>
-      <Text style={styles.studentStats}>
-        Juegos: {item.total_games_played} | Promedio: {Math.round(item.average_score || 0)}
-      </Text>
-    </View>
-    <View style={styles.studentActions}>
-      <TouchableOpacity 
-        style={styles.miniActionButton}
-        onPress={() => Alert.alert('Progreso', `Ver progreso detallado de ${item.name}`)}
-      >
-        <MaterialIcons name="trending-up" size={20} color="#4CAF50" />
-      </TouchableOpacity>
-      
-      {/* 🆕 BOTÓN DE DESINSCRIPCIÓN */}
-      <TouchableOpacity 
-        style={[styles.miniActionButton, { backgroundColor: '#FFEBEE' }]}
-        onPress={() => showUnenrollDialog(item)}
-      >
-        <MaterialIcons name="person-remove" size={20} color="#F44336" />
-      </TouchableOpacity>
-    </View>
-  </View>
-);
-
-// 🆕 FUNCIÓN PARA DESINSCRIBIR ESTUDIANTE
-const showUnenrollDialog = (student: Student) => {
-  Alert.alert(
-    'Desinscribir Estudiante',
-    `¿Estás seguro de que deseas desinscribir a ${student.name} de esta aula?\n\nEl estudiante podrá inscribirse en otra aula después.`,
-    [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Desinscribir',
-        style: 'destructive',
-        onPress: () => unenrollStudent(student.id, student.name)
-      }
-    ]
-  );
-};
-
-const unenrollStudent = async (studentId: number, studentName: string) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/students/${studentId}/unenroll`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        reason: `Desinscrito por ${user?.name} desde classroom-management`
-      }),
-    });
-
-    const result = await response.json();
-    
-    if (result.success) {
-      Alert.alert(
-        'Estudiante Desinscrito',
-        result.message,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Recargar lista de estudiantes si el modal está abierto
-              if (selectedClassroom) {
-                handleManageStudents(selectedClassroom);
-              }
-              loadClassrooms();
-            }
-          }
-        ]
-      );
-    } else {
-      Alert.alert('Error', result.error || 'No se pudo desinscribir al estudiante');
-    }
-  } catch (error) {
-    console.error('Error desinscribiendo estudiante:', error);
-    Alert.alert('Error', 'Ocurrió un error inesperado');
-  }
-};
 
   if (loading) {
     return (
@@ -631,85 +598,85 @@ const unenrollStudent = async (studentId: number, studentName: string) => {
 
       {/* Modal de estudiantes */}
       <Modal visible={showStudentsModal} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {selectedClassroom?.name}
-            </Text>
-            <TouchableOpacity onPress={() => setShowStudentsModal(false)}>
-              <MaterialIcons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.modalSubtitleContainer}>
-            <Text style={styles.modalSubtitle}>
-              {classroomStudents.length} estudiantes inscritos
-            </Text>
-            <View style={styles.capacityIndicator}>
-              <MaterialIcons name="people" size={16} color="#2196F3" />
-              <Text style={styles.capacityText}>
-                {classroomStudents.length}/{selectedClassroom?.max_students}
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {selectedClassroom?.name}
               </Text>
+              <TouchableOpacity onPress={() => setShowStudentsModal(false)}>
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
-          </View>
 
-          {loadingStudents ? (
-            <View style={styles.loadingStudents}>
-              <ActivityIndicator size="small" color="#2196F3" />
-              <Text>Cargando estudiantes...</Text>
+            <View style={styles.modalSubtitleContainer}>
+              <Text style={styles.modalSubtitle}>
+                {classroomStudents.length} estudiantes inscritos
+              </Text>
+              <View style={styles.capacityIndicator}>
+                <MaterialIcons name="people" size={16} color="#2196F3" />
+                <Text style={styles.capacityText}>
+                  {classroomStudents.length}/{selectedClassroom?.max_students}
+                </Text>
+              </View>
             </View>
-          ) : (
-            <FlatList
-              data={classroomStudents}
-              renderItem={renderStudentItem}
-              keyExtractor={(item) => item.id.toString()}
-              style={styles.studentsList}
-              ListEmptyComponent={
-                <View style={styles.emptyStudents}>
-                  <MaterialIcons name="people-outline" size={48} color="#CCC" />
-                  <Text style={styles.emptyStudentsText}>No hay estudiantes inscritos</Text>
-                  <Text style={styles.emptyStudentsSubtext}>
-                    Los estudiantes solo pueden estar en una aula a la vez
-                  </Text>
-                </View>
-              }
-            />
-          )}
 
-          <View style={styles.modalFooter}>
-            <TouchableOpacity 
-              style={styles.addStudentButton}
-              onPress={() => {
-                setShowStudentsModal(false);
-                if (selectedClassroom) {
-                  handleEnrollStudent(selectedClassroom);
+            {loadingStudents ? (
+              <View style={styles.loadingStudents}>
+                <ActivityIndicator size="small" color="#2196F3" />
+                <Text>Cargando estudiantes...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={classroomStudents}
+                renderItem={renderStudentItem}
+                keyExtractor={(item) => item.id.toString()}
+                style={styles.studentsList}
+                ListEmptyComponent={
+                  <View style={styles.emptyStudents}>
+                    <MaterialIcons name="people-outline" size={48} color="#CCC" />
+                    <Text style={styles.emptyStudentsText}>No hay estudiantes inscritos</Text>
+                    <Text style={styles.emptyStudentsSubtext}>
+                      Los estudiantes solo pueden estar en una aula a la vez
+                    </Text>
+                  </View>
                 }
-              }}
-            >
-              <MaterialIcons name="person-add" size={20} color="#FFF" />
-              <Text style={styles.addStudentButtonText}>Inscribir Estudiante</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.infoButton}
-              onPress={() => {
-                Alert.alert(
-                  'Información',
-                  'Restricciones de inscripción:\n\n• Un estudiante solo puede estar en una aula a la vez\n• Para cambiar de aula, debe ser transferido\n• Los estudiantes desincritos pueden inscribirse en otras aulas',
-                  [{ text: 'Entendido' }]
-                );
-              }}
-            >
-              <MaterialIcons name="info" size={20} color="#2196F3" />
-              <Text style={[styles.addStudentButtonText, { color: '#2196F3' }]}>
-                Info
-              </Text>
-            </TouchableOpacity>
+              />
+            )}
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.addStudentButton}
+                onPress={() => {
+                  setShowStudentsModal(false);
+                  if (selectedClassroom) {
+                    handleEnrollStudent(selectedClassroom);
+                  }
+                }}
+              >
+                <MaterialIcons name="person-add" size={20} color="#FFF" />
+                <Text style={styles.addStudentButtonText}>Inscribir Estudiante</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.infoButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Información',
+                    'Restricciones de inscripción:\n\n• Un estudiante solo puede estar en una aula a la vez\n• Para cambiar de aula, debe ser transferido\n• Los estudiantes desincritos pueden inscribirse en otras aulas',
+                    [{ text: 'Entendido' }]
+                  );
+                }}
+              >
+                <MaterialIcons name="info" size={20} color="#2196F3" />
+                <Text style={[styles.addStudentButtonText, { color: '#2196F3' }]}>
+                  Info
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
 
       {/* Modal de inscripción de estudiante */}
       <Modal visible={showStudentModal} transparent animationType="slide">

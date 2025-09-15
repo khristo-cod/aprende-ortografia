@@ -1,7 +1,7 @@
 // src/contexts/AuthContext.tsx - VERSIÓN CORREGIDA
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { API_BASE_URL, makeApiRequest } from '../config/api';
+import { initializeApiUrl, makeApiRequest } from '../config/api';
 
 // Tipos base existentes (mantener todos los tipos que ya tienes)
 interface User {
@@ -94,17 +94,14 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  
-  // 🆕 AGREGAR ESTA LÍNEA:
   API_BASE_URL: string;
-  
-  // 🆕 CORREGIR - No devolver API_BASE_URL aquí, usar directamente del config
   
   // Métodos de autenticación
   login: (email: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   register: (name: string, email: string, password: string, role: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => Promise<void>;
 
+  // Gestión de estudiantes
   transferStudent: (studentId: number, newClassroomId: number, reason?: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   unenrollStudent: (studentId: number, reason?: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   
@@ -113,7 +110,7 @@ interface AuthContextType {
   getGameProgress: (userId?: number) => Promise<{ success: boolean; progress?: any[]; stats?: any; error?: string }>;
   getGameConfig: (gameType: string) => Promise<{ success: boolean; configs?: any[]; error?: string }>;
   
-  // 🆕 NUEVOS MÉTODOS PARA INSCRIPCIÓN DE ESTUDIANTES
+  // Inscripción de estudiantes
   searchStudent: (email: string) => Promise<{ success: boolean; student?: any; error?: string }>;
   getAvailableClassrooms: () => Promise<{ success: boolean; classrooms?: any[]; error?: string }>;
   studentSelfEnroll: (classroomId: number) => Promise<{ success: boolean; message?: string; error?: string }>;
@@ -143,6 +140,9 @@ interface AuthContextType {
   getMyChildren: () => Promise<{ success: boolean; children?: Student[]; error?: string }>;
   getTeacherDashboard: () => Promise<{ success: boolean; dashboard?: TeacherDashboard; error?: string }>;
   
+  // 🆕 NUEVA FUNCIÓN PARA DEBUG
+  testBackendConnection: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  
   // Estados útiles
   isAuthenticated: boolean;
   isDocente: boolean;
@@ -162,6 +162,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [token, setToken] = useState<string | null>(null);
+  const [API_BASE_URL, setApiBaseUrl] = useState<string>('http://localhost:3001/api');
+
+useEffect(() => {
+    initializeApi();
+  }, []);
+
+  const initializeApi = async () => {
+    try {
+      const url = await initializeApiUrl();
+      setApiBaseUrl(url);
+      console.log('🔧 API URL inicializada:', url);
+    } catch (error) {
+      console.error('🚨 Error inicializando API:', error);
+    }
+  };
 
   // Verificar token al iniciar la app
   useEffect(() => {
@@ -169,47 +184,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // Implementar los métodos en el AuthProvider:
-const transferStudent = async (studentId: number, newClassroomId: number, reason?: string) => {
-  if (!token) return { success: false, error: 'No autenticado' };
+  const transferStudent = async (studentId: number, newClassroomId: number, reason?: string) => {
+    if (!token) return { success: false, error: 'No autenticado' };
 
-  try {
-    const data = await makeApiRequest(`/students/${studentId}/transfer/${newClassroomId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ reason }),
-    });
+    try {
+      const data = await makeApiRequest<{
+        success: boolean;
+        message?: string;
+        error?: string;
+      }>(`/students/${studentId}/transfer/${newClassroomId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason }),
+      });
 
-    return { success: true, message: data.message };
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error de conexión' 
-    };
-  }
-};
-
-const unenrollStudentFromClassroom = async (studentId: number, reason?: string) => {
-  if (!token) return { success: false, error: 'No autenticado' };
-
-  try {
-    const data = await makeApiRequest(`/students/${studentId}/unenroll`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ reason }),
-    });
-
-    return { success: true, message: data.message };
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error de conexión' 
-    };
-  }
-};
+      // ✅ AHORA TypeScript sabe que data tiene message
+      return { 
+        success: data.success, 
+        message: data.message,
+        error: data.error 
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
+    }
+  };
 
   const checkAuthState = async (): Promise<void> => {
     try {
@@ -327,10 +330,12 @@ const unenrollStudentFromClassroom = async (studentId: number, reason?: string) 
   // 🆕 NUEVOS MÉTODOS PARA INSCRIPCIÓN
 
   // Verificar estado de inscripción del estudiante
-  const checkStudentEnrollmentStatus = async () => {
+    const checkStudentEnrollmentStatus = async () => {
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
+      console.log('🔍 Verificando estado de inscripción...');
+      
       const data = await makeApiRequest<{
         success: boolean;
         isEnrolled?: boolean;
@@ -342,8 +347,10 @@ const unenrollStudentFromClassroom = async (studentId: number, reason?: string) 
         },
       });
 
+      console.log('📊 Resultado de inscripción:', data);
       return data;
     } catch (error) {
+      console.error('🚨 Error verificando inscripción:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Error de conexión' 
@@ -403,54 +410,67 @@ const unenrollStudentFromClassroom = async (studentId: number, reason?: string) 
 
   // Estudiante se inscribe en aula
   const studentSelfEnroll = async (classroomId: number) => {
-    if (!token) return { success: false, error: 'No autenticado' };
+  if (!token) return { success: false, error: 'No autenticado' };
 
-    try {
-      const data = await makeApiRequest<{
-        success: boolean;
-        message?: string;
-        error?: string;
-      }>(`/student/enroll/${classroomId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>(`/student/enroll/${classroomId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
 
-      return data;
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Error de conexión' 
-      };
-    }
-  };
-
+    return {
+      success: data.success,
+      message: data.message,
+      error: data.error
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
   // 🆕 SAVE GAME PROGRESS MEJORADO
   const saveGameProgress = async (gameData: any) => {
-    if (!token || !user) return { success: false, error: 'No autenticado' };
+  if (!token || !user) return { success: false, error: 'No autenticado' };
 
-    try {
-      console.log('💾 Guardando progreso del juego:', gameData.game_type);
-      
-      const data = await makeApiRequest('/games/save-progress', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ...gameData, user_id: user.id }),
-      });
+  try {
+    console.log('💾 Guardando progreso del juego:', gameData.game_type);
+    
+    const data = await makeApiRequest<{
+      success: boolean;
+      session_id?: number;
+      message?: string;
+      error?: string;
+    }>('/games/save-progress', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...gameData, user_id: user.id }),
+    });
 
-      console.log('✅ Progreso guardado exitosamente');
-      return { success: true, data };
-    } catch (error) {
-      console.error('🚨 Error guardando progreso:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Error de conexión' 
-      };
-    }
-  };
+    console.log('✅ Progreso guardado exitosamente');
+    return { 
+      success: data.success, 
+      data: data,
+      session_id: data.session_id,
+      error: data.error 
+    };
+  } catch (error) {
+    console.error('🚨 Error guardando progreso:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
 
   const getGameProgress = async (userId?: number) => {
     if (!token) return { success: false, error: 'No autenticado' };
@@ -531,67 +551,120 @@ const unenrollStudentFromClassroom = async (studentId: number, reason?: string) 
     }
   };
 
-  const createTitanicWord = async (wordData: WordInput) => {
-    if (!token) return { success: false, error: 'No autenticado' };
+const createTitanicWord = async (wordData: WordInput) => {
+  if (!token) return { success: false, error: 'No autenticado' };
 
-    try {
-      const data = await makeApiRequest<{ success: boolean; word: WordEntry; error?: string }>('/titanic/words', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(wordData),
-      });
+  try {
+    const data = await makeApiRequest<{ 
+      success: boolean; 
+      word?: WordEntry; 
+      message?: string;
+      error?: string 
+    }>('/titanic/words', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(wordData),
+    });
 
-      return { success: true, word: data.word };
-    } catch (error) {
-      return { success: false, error: 'Error de conexión' };
-    }
-  };
+    return { 
+      success: data.success, 
+      word: data.word,
+      message: data.message,
+      error: data.error 
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
 
-  const updateTitanicWord = async (id: string, wordData: Partial<WordInput>) => {
-    if (!token) return { success: false, error: 'No autenticado' };
+// 8. CORREGIR updateTitanicWord
+const updateTitanicWord = async (id: string, wordData: Partial<WordInput>) => {
+  if (!token) return { success: false, error: 'No autenticado' };
 
-    try {
-      const data = await makeApiRequest<{ success: boolean; word: WordEntry; error?: string }>(`/titanic/words/${id}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(wordData),
-      });
+  try {
+    const data = await makeApiRequest<{ 
+      success: boolean; 
+      word?: WordEntry; 
+      message?: string;
+      error?: string 
+    }>(`/titanic/words/${id}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(wordData),
+    });
 
-      return { success: true, word: data.word };
-    } catch (error) {
-      return { success: false, error: 'Error de conexión' };
-    }
-  };
+    return { 
+      success: data.success, 
+      word: data.word,
+      message: data.message,
+      error: data.error 
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
 
-  const deleteTitanicWord = async (id: string) => {
-    if (!token) return { success: false, error: 'No autenticado' };
+// 9. CORREGIR deleteTitanicWord
+const deleteTitanicWord = async (id: string) => {
+  if (!token) return { success: false, error: 'No autenticado' };
 
-    try {
-      await makeApiRequest(`/titanic/words/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>(`/titanic/words/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
 
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: 'Error de conexión' };
-    }
-  };
+    return { 
+      success: data.success,
+      message: data.message,
+      error: data.error 
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
 
-  const toggleTitanicWordStatus = async (id: string) => {
-    if (!token) return { success: false, error: 'No autenticado' };
+// 10. CORREGIR toggleTitanicWordStatus
+const toggleTitanicWordStatus = async (id: string) => {
+  if (!token) return { success: false, error: 'No autenticado' };
 
-    try {
-      const data = await makeApiRequest<{ success: boolean; word: WordEntry; error?: string }>(`/titanic/words/${id}/toggle`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+  try {
+    const data = await makeApiRequest<{ 
+      success: boolean; 
+      word?: WordEntry; 
+      message?: string;
+      error?: string 
+    }>(`/titanic/words/${id}/toggle`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
 
-      return { success: true, word: data.word };
-    } catch (error) {
-      return { success: false, error: 'Error de conexión' };
-    }
-  };
+    return { 
+      success: data.success, 
+      word: data.word,
+      message: data.message,
+      error: data.error 
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
 
   const getActiveTitanicWords = async (difficulty: number) => {
     try {
@@ -633,15 +706,28 @@ const unenrollStudentFromClassroom = async (studentId: number, reason?: string) 
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      const data = await makeApiRequest<{ success: boolean; classroom_id: number; error?: string }>('/classrooms', {
+      const data = await makeApiRequest<{ 
+        success: boolean; 
+        classroom_id?: number; 
+        message?: string;
+        error?: string 
+      }>('/classrooms', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(classroomData),
       });
 
-      return { success: true, classroom_id: data.classroom_id };
+      return { 
+        success: data.success, 
+        classroom_id: data.classroom_id,
+        message: data.message,
+        error: data.error 
+      };
     } catch (error) {
-      return { success: false, error: 'Error de conexión' };
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
     }
   };
 
@@ -663,15 +749,26 @@ const unenrollStudentFromClassroom = async (studentId: number, reason?: string) 
     if (!token) return { success: false, error: 'No autenticado' };
 
     try {
-      await makeApiRequest(`/classrooms/${classroomId}/students`, {
+      const data = await makeApiRequest<{
+        success: boolean;
+        message?: string;
+        error?: string;
+      }>(`/classrooms/${classroomId}/students`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ student_id: studentId }),
       });
 
-      return { success: true };
+      return { 
+        success: data.success,
+        message: data.message,
+        error: data.error 
+      };
     } catch (error) {
-      return { success: false, error: 'Error de conexión' };
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Error de conexión' 
+      };
     }
   };
 
@@ -717,51 +814,87 @@ const unenrollStudentFromClassroom = async (studentId: number, reason?: string) 
     }
   };
 
-  const value: AuthContextType = {
-    user,
-    token,
-    loading,
-    API_BASE_URL, // 🆕 AGREGAR ESTA LÍNEA
-    login,
-    register,
-    logout,
-    saveGameProgress,
-    getGameProgress,
-    getGameConfig,
-    transferStudent,
-    unenrollStudent: unenrollStudentFromClassroom,
-    
-    // 🆕 NUEVOS MÉTODOS
-    searchStudent,
-    getAvailableClassrooms,
-    studentSelfEnroll,
-    checkStudentEnrollmentStatus,
-    
-    // CRUD Titanic
-    getTitanicWords,
-    getTitanicStats,
-    createTitanicWord,
-    updateTitanicWord,
-    deleteTitanicWord,
-    toggleTitanicWordStatus,
-    getActiveTitanicWords,
-    
-    // Sistema multi-docente
-    createClassroom,
-    getMyClassrooms,
-    enrollStudent,
-    getClassroomStudents,
-    getMyChildren,
-    getTeacherDashboard,
-    
-    // Estados útiles
-    isAuthenticated: !!user,
-    isDocente: user?.role === 'docente',
-    isRepresentante: user?.role === 'representante',
-    isNino: user?.role === 'nino',
-    userName: user?.name || 'Usuario',
-    userRole: user?.role || 'nino',
-  };
+  const unenrollStudent = async (studentId: number, reason?: string) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>(`/students/${studentId}/unenroll`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason }),
+    });
+
+    // ✅ AHORA TypeScript sabe que data tiene message
+    return { 
+      success: data.success, 
+      message: data.message,
+      error: data.error 
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+    const value: AuthContextType = {
+      user,
+      token,
+      loading,
+      API_BASE_URL, // Ahora es dinámico
+      login,
+      register,
+      logout,
+      saveGameProgress,
+      getGameProgress,
+      getGameConfig,
+      transferStudent,
+      unenrollStudent, // 🔧 CORREGIDO - ahora una sola función
+
+
+      // Métodos de inscripción
+      searchStudent,
+      getAvailableClassrooms,
+      studentSelfEnroll,
+      checkStudentEnrollmentStatus, // 🔧 CORREGIDO
+
+
+      // CRUD Titanic
+      getTitanicWords,
+      getTitanicStats,
+      createTitanicWord,
+      updateTitanicWord,
+      deleteTitanicWord,
+      toggleTitanicWordStatus,
+      getActiveTitanicWords,
+
+      // Sistema multi-docente
+      createClassroom,
+      getMyClassrooms,
+      enrollStudent,
+      getClassroomStudents,
+      getMyChildren,
+      getTeacherDashboard,
+
+      // 🆕 NUEVA FUNCIÓN PARA DEBUG
+      // Estados útiles
+      isAuthenticated: !!user,
+      isDocente: user?.role === 'docente',
+      isRepresentante: user?.role === 'representante',
+      isNino: user?.role === 'nino',
+      userName: user?.name || 'Usuario',
+      userRole: user?.role || 'nino',
+      testBackendConnection: function (): Promise<{ success: boolean; data?: any; error?: string; }> {
+        throw new Error('Function not implemented.');
+      }
+    };
 
   return (
     <AuthContext.Provider value={value}>

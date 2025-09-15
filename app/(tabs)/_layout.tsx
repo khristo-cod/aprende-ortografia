@@ -1,4 +1,4 @@
-// 🔧 ACTUALIZAR app/(tabs)/_layout.tsx - CORREGIR VISIBILIDAD DE TABS
+// 🔧 CORREGIR app/(tabs)/_layout.tsx - VISIBILIDAD CORRECTA DE TABS
 
 import { HapticTab } from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';
@@ -91,16 +91,17 @@ export default function TabLayout() {
           </>
         )}
 
-        {/* =================== GESTIÓN DE AULAS - SOLO DOCENTES =================== */}
-        {isDocente && (
-          <Tabs.Screen
-            name="classroom-management"
-            options={{
-              title: 'Mis Aulas',
-              tabBarIcon: ({ color }) => <MaterialIcons name="school" size={28} color={color} />,
-            }}
-          />
-        )}
+        {/* =================== OCULTAR TODAS LAS PANTALLAS ADMINISTRATIVAS DE ESTUDIANTES =================== */}
+        
+        {/* 🚨 OCULTAR classroom-management PARA ESTUDIANTES Y REPRESENTANTES */}
+        <Tabs.Screen
+          name="classroom-management"
+          options={{
+            href: isDocente ? undefined : null, // 🔧 SOLO VISIBLE PARA DOCENTES
+            title: 'Mis Aulas',
+            tabBarIcon: ({ color }) => <MaterialIcons name="school" size={28} color={color} />,
+          }}
+        />
 
         {/* =================== PANTALLAS OCULTAS - No aparecen en tabs pero son navegables =================== */}
         <Tabs.Screen
@@ -165,16 +166,6 @@ export default function TabLayout() {
             name="parent-dashboard"
             options={{
               href: null, // 🚨 OCULTO para no-representantes
-            }}
-          />
-        )}
-
-        {/* 🚨 IMPORTANTE: Ocultar classroom-management para estudiantes */}
-        {!isDocente && (
-          <Tabs.Screen
-            name="classroom-management"
-            options={{
-              href: null, // 🚨 OCULTO para no-docentes
             }}
           />
         )}

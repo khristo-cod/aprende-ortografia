@@ -1,37 +1,48 @@
-// 🚨 REEMPLAZAR COMPLETAMENTE src/config/api.ts
+// 🔧 ARCHIVO CORREGIDO: src/config/api.ts
+import * as Network from 'expo-network';
 import { Platform } from 'react-native';
 
-// 🚨 IMPORTANTE: Cambiar por tu IP real de WiFi
-const getLocalIPAddress = (): string => {
-  // 🔍 Para encontrar tu IP ejecuta en terminal:
-  // Windows: ipconfig | findstr "IPv4"
-  // Mac: ipconfig getifaddr en0
-  // Linux: hostname -I | awk '{print $1}'
-  
-  return '192.168.1.8'; // 🚨 CAMBIAR POR TU IP REAL
+// 🆕 DETECTAR IP AUTOMÁTICAMENTE
+const getLocalIPAddress = async (): Promise<string> => {
+  try {
+    // Intentar obtener IP automáticamente
+    const networkInfo = await Network.getIpAddressAsync();
+    if (networkInfo && networkInfo !== '127.0.0.1') {
+      console.log('🔍 IP detectada automáticamente:', networkInfo);
+      return networkInfo;
+    }
+  } catch (error) {
+    console.log('⚠️ No se pudo detectar IP automáticamente');
+  }
+
+  // IPs comunes como fallback
+  const commonIPs = [
+    '192.168.1.8',   // Tu IP actual
+    '192.168.1.105', // IP común
+    '192.168.0.105', // IP común
+    '10.0.2.2',      // Android emulator
+  ];
+
+  console.log('🔄 Usando IP fallback:', commonIPs[0]);
+  return commonIPs[0];
 };
 
-export const getApiUrl = (): string => {
+export const getApiUrl = async (): Promise<string> => {
   console.log('🔧 Platform.OS:', Platform.OS);
-  // @ts-ignore
-  console.log('🔧 __DEV__:', __DEV__);
   
   // @ts-ignore
   if (__DEV__) {
-    const localIP = getLocalIPAddress();
+    const localIP = await getLocalIPAddress();
     let url = '';
     
     switch (Platform.OS) {
       case 'android':
-        // 🎯 Para Android físico, usar IP de la red WiFi
         url = `http://${localIP}:3001/api`;
         break;
       case 'ios':
-        // 🎯 Para iOS, también usar IP de red si es dispositivo físico
         url = `http://${localIP}:3001/api`;
         break;
       case 'web':
-        // 🎯 Para web, localhost funciona
         url = 'http://localhost:3001/api';
         break;
       default:
@@ -42,40 +53,49 @@ export const getApiUrl = (): string => {
     console.log('🔧 API URL seleccionada:', url);
     return url;
   } else {
-    // Producción
     const prodUrl = 'https://tu-backend-produccion.herokuapp.com/api';
     console.log('🔧 Modo producción, URL:', prodUrl);
     return prodUrl;
   }
 };
 
-export const API_BASE_URL = getApiUrl();
+// 🆕 INICIALIZAR API_BASE_URL DE FORMA ASÍNCRONA
+let API_BASE_URL = 'http://localhost:3001/api'; // Fallback inicial
+
+export const initializeApiUrl = async (): Promise<string> => {
+  try {
+    API_BASE_URL = await getApiUrl();
+    return API_BASE_URL;
+  } catch (error) {
+    console.error('🚨 Error inicializando API URL:', error);
+    return API_BASE_URL;
+  }
+};
+
+export { API_BASE_URL };
 
 export const API_CONFIG = {
-  timeout: 15000, // 🔧 Reducir timeout para debug
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
 };
 
-// 🆕 Función mejorada con mejor logging y retry
+// 🆕 FUNCIÓN MEJORADA CON DETECCIÓN DE PROBLEMAS DE RED
 export const makeApiRequest = async <T>(
   endpoint: string, 
   options: RequestInit = {},
   retries: number = 3
 ): Promise<T> => {
-  const url = `${API_BASE_URL}${endpoint}`;
+  // Asegurar que tenemos la URL correcta
+  const currentUrl = await initializeApiUrl();
+  const url = `${currentUrl}${endpoint}`;
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     console.log(`🌐 === INICIO REQUEST (Intento ${attempt}/${retries}) ===`);
     console.log('🌐 URL completa:', url);
     console.log('🌐 Método:', options.method || 'GET');
-    console.log('🌐 Headers:', JSON.stringify(options.headers, null, 2));
-    
-    if (options.body) {
-      console.log('🌐 Body:', typeof options.body === 'string' ? options.body : 'FormData/Binary');
-    }
     
     try {
       const controller = new AbortController();
@@ -107,7 +127,6 @@ export const makeApiRequest = async <T>(
           console.log('❌ No se pudo leer error del servidor');
         }
         
-        // Si es 500 y no es el último intento, reintentar
         if (response.status >= 500 && attempt < retries) {
           console.log('🔄 Error 500, reintentando...');
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
@@ -126,26 +145,25 @@ export const makeApiRequest = async <T>(
       console.log(`🚨 === ERROR EN REQUEST (Intento ${attempt}) ===`);
       console.log('🚨 Error name:', error?.name);
       console.log('🚨 Error message:', error?.message);
-      console.log('🚨 Error stack:', error?.stack);
       
-      // Si es el último intento, lanzar el error
       if (attempt === retries) {
         console.log('🚨 === TODOS LOS INTENTOS FALLARON ===');
         
         if (error?.name === 'AbortError') {
           throw new Error(`Timeout: El servidor no responde después de ${retries} intentos. 
 Verifica:
-1. Que el servidor esté corriendo en http://${getLocalIPAddress()}:3001
+1. Que el servidor esté corriendo: node src/backend/server.js
 2. Que ambos dispositivos estén en la misma WiFi
-3. Que no haya firewall bloqueando el puerto 3001`);
+3. Que no haya firewall bloqueando el puerto 3001
+4. Tu IP actual: ${await getLocalIPAddress()}`);
         }
         
         if (error?.message?.includes('Network request failed') || 
             error?.message?.includes('fetch')) {
           throw new Error(`Error de red: No se puede conectar al servidor.
 Verifica:
-1. IP correcta: ${getLocalIPAddress()}
-2. Servidor corriendo: http://${getLocalIPAddress()}:3001/api/health
+1. IP correcta: ${await getLocalIPAddress()}
+2. Servidor corriendo: http://${await getLocalIPAddress()}:3001/api/health
 3. Misma red WiFi
 4. Firewall/antivirus no bloquee el puerto`);
         }
@@ -153,7 +171,6 @@ Verifica:
         throw error;
       }
       
-      // Esperar antes del siguiente intento
       console.log(`⏳ Esperando ${attempt * 1000}ms antes del intento ${attempt + 1}...`);
       await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
     }
@@ -162,27 +179,49 @@ Verifica:
   throw new Error('Error inesperado en makeApiRequest');
 };
 
-// 🔧 Función para testing de conectividad
-export const testConnectivity = async (): Promise<boolean> => {
+// 🔧 FUNCIÓN PARA TESTING DE CONECTIVIDAD MEJORADA
+export const testConnectivity = async (): Promise<{
+  success: boolean;
+  url: string;
+  ip: string;
+  details: string;
+}> => {
   try {
     console.log('🧪 Testing conectividad...');
-    const response = await fetch(`${API_BASE_URL}/health`, {
+    const currentUrl = await initializeApiUrl();
+    const currentIP = await getLocalIPAddress();
+    
+    const response = await fetch(`${currentUrl}/health`, {
       method: 'GET',
       headers: API_CONFIG.headers,
     });
     
     console.log('🧪 Test result:', response.status);
-    return response.ok;
-  } catch (error) {
+    return {
+      success: response.ok,
+      url: currentUrl,
+      ip: currentIP,
+      details: response.ok ? 'Conexión exitosa' : `Error HTTP ${response.status}`
+    };
+  } catch (error: any) {
     console.log('🧪 Test falló:', error);
-    return false;
+    const currentIP = await getLocalIPAddress();
+    return {
+      success: false,
+      url: API_BASE_URL,
+      ip: currentIP,
+      details: error.message || 'Error de conexión'
+    };
   }
 };
 
-export const getApiConfig = () => {
+export const getApiConfig = async () => {
+  const currentUrl = await initializeApiUrl();
+  const currentIP = await getLocalIPAddress();
+  
   return {
-    baseUrl: API_BASE_URL,
-    localIP: getLocalIPAddress(),
+    baseUrl: currentUrl,
+    localIP: currentIP,
     platform: Platform.OS,
     // @ts-ignore
     isDev: __DEV__,
