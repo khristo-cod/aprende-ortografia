@@ -81,6 +81,7 @@ export default function ClassroomManagement() {
     searchStudent,
     transferStudent,
     unenrollStudent,
+    getStudentParents,
   } = useAuth();
 
   // Estados principales
@@ -110,6 +111,9 @@ export default function ClassroomManagement() {
   const [studentEmail, setStudentEmail] = useState('');
   const [enrollingStudent, setEnrollingStudent] = useState(false);
   const [selectedClassroomForEnrollment, setSelectedClassroomForEnrollment] = useState<Classroom | null>(null);
+
+  // Estado para conteo de representantes
+  const [studentsWithParents, setStudentsWithParents] = useState<{ [key: number]: number }>({});
 
   // Función local para buscar estudiante
   const searchStudentByEmail = async (email: string) => {
@@ -202,6 +206,26 @@ export default function ClassroomManagement() {
     }
   };
 
+  // Función para obtener conteo de representantes
+  const loadStudentsParentsCount = async (students: Student[]) => {
+    try {
+      const parentsCount: { [key: number]: number } = {};
+      
+      for (const student of students) {
+        if (getStudentParents) {
+          const result = await getStudentParents(student.id);
+          if (result.success && result.parents) {
+            parentsCount[student.id] = result.parents.length;
+          }
+        }
+      }
+      
+      setStudentsWithParents(parentsCount);
+    } catch (error) {
+      console.log('Error cargando conteo de representantes:', error);
+    }
+  };
+
   const handleManageStudents = async (classroom: Classroom) => {
     setSelectedClassroom(classroom);
     setLoadingStudents(true);
@@ -212,6 +236,8 @@ export default function ClassroomManagement() {
       
       if (result.success && result.students) {
         setClassroomStudents(result.students);
+        // Cargar conteo de representantes
+        await loadStudentsParentsCount(result.students);
       } else {
         console.error('Error cargando estudiantes:', result.error);
         setClassroomStudents([]);
@@ -361,7 +387,7 @@ export default function ClassroomManagement() {
     }
   };
 
-  // Renderizar item de estudiante con opción de desinscribir
+  // Renderizar item de estudiante con indicadores de representantes
   const renderStudentItem = ({ item }: { item: Student }) => (
     <View style={styles.studentCard}>
       <View style={styles.studentInfo}>
@@ -370,13 +396,48 @@ export default function ClassroomManagement() {
         <Text style={styles.studentStats}>
           Juegos: {item.total_games_played} | Promedio: {Math.round(item.average_score || 0)}
         </Text>
+        
+        {/* Indicador de representantes */}
+        <View style={styles.parentsIndicator}>
+          <MaterialIcons name="family-restroom" size={16} color="#2196F3" />
+          <Text style={styles.parentsCount}>
+            {studentsWithParents[item.id] || 0}/2 representantes
+          </Text>
+          {(studentsWithParents[item.id] || 0) === 0 && (
+            <View style={styles.warningBadge}>
+              <Text style={styles.warningText}>¡Sin representantes!</Text>
+            </View>
+          )}
+        </View>
       </View>
+      
       <View style={styles.studentActions}>
         <TouchableOpacity 
           style={styles.miniActionButton}
           onPress={() => Alert.alert('Progreso', `Ver progreso detallado de ${item.name}`)}
         >
           <MaterialIcons name="trending-up" size={20} color="#4CAF50" />
+        </TouchableOpacity>
+        
+        {/* Botón de representantes con indicador */}
+        <TouchableOpacity 
+          style={[
+            styles.miniActionButton, 
+            { backgroundColor: '#E3F2FD' },
+            (studentsWithParents[item.id] || 0) === 0 && { backgroundColor: '#FFEBEE' }
+          ]}
+          onPress={() => router.push(`/(tabs)/student-parents-management?studentId=${item.id}&studentName=${encodeURIComponent(item.name)}` as any)}
+        >
+          <MaterialIcons 
+            name="family-restroom" 
+            size={20} 
+            color={(studentsWithParents[item.id] || 0) === 0 ? "#F44336" : "#2196F3"} 
+          />
+          {(studentsWithParents[item.id] || 0) > 0 && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{studentsWithParents[item.id]}</Text>
+            </View>
+          )}
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -945,6 +1006,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
+  modalSubtitleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  capacityIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  capacityText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#2196F3',
+  },
   modalForm: {
     padding: 20,
   },
@@ -1049,6 +1133,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#999',
   },
+  parentsIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  parentsCount: {
+    fontSize: 11,
+    color: '#2196F3',
+    fontWeight: '500',
+  },
+  warningBadge: {
+    backgroundColor: '#FFEBEE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+  warningText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#F44336',
+  },
   studentActions: {
     flexDirection: 'row',
     gap: 8,
@@ -1057,6 +1164,23 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: '#E8F5E8',
     borderRadius: 6,
+    position: 'relative',
+  },
+  countBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  countBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFF',
   },
   emptyStudents: {
     alignItems: 'center',
@@ -1066,45 +1190,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     marginTop: 8,
-  },
-  addStudentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2196F3',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  addStudentButtonText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-   modalSubtitleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  capacityIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  capacityText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#2196F3',
   },
   emptyStudentsSubtext: {
     fontSize: 12,
@@ -1119,6 +1204,21 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
     gap: 12,
+  },
+  addStudentButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  addStudentButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   infoButton: {
     flex: 1,

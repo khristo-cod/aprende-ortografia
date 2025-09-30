@@ -1,4 +1,4 @@
-// 🔧 CORREGIR app/(tabs)/_layout.tsx - VISIBILIDAD CORRECTA DE TABS
+// app/(tabs)/_layout.tsx - LAYOUT CORREGIDO CON GESTIÓN DE REPRESENTANTES
 
 import { HapticTab } from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';
@@ -91,13 +91,11 @@ export default function TabLayout() {
           </>
         )}
 
-        {/* =================== OCULTAR TODAS LAS PANTALLAS ADMINISTRATIVAS DE ESTUDIANTES =================== */}
-        
-        {/* 🚨 OCULTAR classroom-management PARA ESTUDIANTES Y REPRESENTANTES */}
+        {/* =================== GESTIÓN DE AULAS - Solo para docentes =================== */}
         <Tabs.Screen
           name="classroom-management"
           options={{
-            href: isDocente ? undefined : null, // 🔧 SOLO VISIBLE PARA DOCENTES
+            href: isDocente ? undefined : null, // SOLO VISIBLE PARA DOCENTES
             title: 'Mis Aulas',
             tabBarIcon: ({ color }) => <MaterialIcons name="school" size={28} color={color} />,
           }}
@@ -107,35 +105,52 @@ export default function TabLayout() {
         <Tabs.Screen
           name="teacher-reports"
           options={{
-            href: null, // 🚨 OCULTO del tab bar
+            href: null, // OCULTO del tab bar
           }}
         />
         
         <Tabs.Screen
           name="titanic-admin"
           options={{
-            href: null, // 🚨 OCULTO del tab bar
+            href: null, // OCULTO del tab bar
           }}
         />
 
         <Tabs.Screen
           name="student-classroom-selection"
           options={{
-            href: null, // 🚨 OCULTO del tab bar
+            href: null, // OCULTO del tab bar
           }}
         />
 
         <Tabs.Screen
           name="classroom-progress"
           options={{
-            href: null, // 🚨 OCULTO del tab bar
+            href: null, // OCULTO del tab bar
           }}
         />
 
         <Tabs.Screen
           name="child-progress"
           options={{
-            href: null, // 🚨 OCULTO del tab bar
+            href: null, // OCULTO del tab bar
+          }}
+        />
+
+        {/* NUEVAS PANTALLAS PARA GESTIÓN DE REPRESENTANTES */}
+        <Tabs.Screen
+          name="student-parents-management"
+          options={{
+            href: null, // OCULTO del tab bar - Solo accesible desde classroom-management
+            title: 'Gestión de Representantes',
+          }}
+        />
+
+        <Tabs.Screen
+          name="parent-link-child"
+          options={{
+            href: null, // OCULTO del tab bar - Solo accesible desde parent-dashboard
+            title: 'Vincular Hijo/a',
           }}
         />
 
@@ -146,7 +161,7 @@ export default function TabLayout() {
           <Tabs.Screen
             name="index"
             options={{
-              href: null, // 🚨 OCULTO para no-estudiantes
+              href: null, // OCULTO para no-estudiantes
             }}
           />
         )}
@@ -156,7 +171,7 @@ export default function TabLayout() {
           <Tabs.Screen
             name="teacher-dashboard"
             options={{
-              href: null, // 🚨 OCULTO para no-docentes
+              href: null, // OCULTO para no-docentes
             }}
           />
         )}
@@ -165,7 +180,7 @@ export default function TabLayout() {
           <Tabs.Screen
             name="parent-dashboard"
             options={{
-              href: null, // 🚨 OCULTO para no-representantes
+              href: null, // OCULTO para no-representantes
             }}
           />
         )}
@@ -176,19 +191,19 @@ export default function TabLayout() {
             <Tabs.Screen
               name="JuegoDeOrtografia"
               options={{
-                href: null, // 🚨 OCULTO para docentes
+                href: null, // OCULTO para docentes
               }}
             />
             <Tabs.Screen
               name="titanic"
               options={{
-                href: null, // 🚨 OCULTO para docentes
+                href: null, // OCULTO para docentes
               }}
             />
             <Tabs.Screen
               name="explore"
               options={{
-                href: null, // 🚨 OCULTO para docentes
+                href: null, // OCULTO para docentes
               }}
             />
           </>

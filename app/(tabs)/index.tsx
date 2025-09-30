@@ -3,7 +3,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -120,15 +120,45 @@ export default function HomeScreen() {
     logout, 
     isAuthenticated, 
     saveGameProgress, 
-    checkStudentEnrollmentStatus 
+    checkStudentEnrollmentStatus,
+    getStudentParents
   } = useAuth();
+
+  // 🆕 NUEVO: Estado para información de representantes
+  const [parentInfo, setParentInfo] = useState({
+    hasParents: false,
+    parentCount: 0,
+    primaryParent: null as any,
+    canViewProgress: false
+  });
 
   // 🆕 Verificar inscripción del estudiante al cargar la pantalla
   useEffect(() => {
     if (user?.role === 'nino') {
       checkStudentEnrollment();
+      loadParentInfo(); // 🆕 NUEVO
     }
   }, [user]);
+
+  // 🆕 NUEVA FUNCIÓN: Cargar información de representantes
+  const loadParentInfo = async () => {
+    if (user?.role === 'nino' && user?.id) {
+      try {
+        const result = await getStudentParents(user.id);
+        if (result.success && result.parents) {
+          const primaryParent = result.parents.find(p => p.is_primary);
+          setParentInfo({
+            hasParents: result.parents.length > 0,
+            parentCount: result.parents.length,
+            primaryParent: primaryParent,
+            canViewProgress: result.parents.some(p => p.can_view_progress)
+          });
+        }
+      } catch (error) {
+        console.log('Error cargando información de representantes:', error);
+      }
+    }
+  };
 
   const checkStudentEnrollment = async () => {
     try {
@@ -291,6 +321,62 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* 🆕 NUEVO: Card de información familiar */}
+        {isAuthenticated && user?.role === 'nino' && (
+          <View style={styles.familyInfoCard}>
+            <View style={styles.familyHeader}>
+              <MaterialIcons name="family-restroom" size={24} color="#4CAF50" />
+              <Text style={styles.familyTitle}>Mi Familia</Text>
+            </View>
+            
+            {parentInfo.hasParents ? (
+              <View style={styles.familyContent}>
+                <Text style={styles.familyText}>
+                  {parentInfo.parentCount} representante{parentInfo.parentCount > 1 ? 's' : ''} vinculado{parentInfo.parentCount > 1 ? 's' : ''}
+                </Text>
+                
+                {parentInfo.primaryParent && (
+                  <View style={styles.primaryParentInfo}>
+                    <MaterialIcons name="star" size={16} color="#FFD700" />
+                    <Text style={styles.primaryParentText}>
+                      {parentInfo.primaryParent.name} (Principal)
+                    </Text>
+                  </View>
+                )}
+                
+                <View style={styles.familyPermissions}>
+                  <View style={styles.permissionItem}>
+                    <MaterialIcons 
+                      name={parentInfo.canViewProgress ? "visibility" : "visibility-off"} 
+                      size={16} 
+                      color={parentInfo.canViewProgress ? "#4CAF50" : "#CCC"} 
+                    />
+                    <Text style={[
+                      styles.permissionText,
+                      { color: parentInfo.canViewProgress ? "#4CAF50" : "#CCC" }
+                    ]}>
+                      {parentInfo.canViewProgress ? "Pueden ver tu progreso" : "Sin acceso al progreso"}
+                    </Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.familyEncouragement}>
+                  ¡Tus representantes pueden seguir tu progreso! 🌟
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.noFamilyContent}>
+                <Text style={styles.noFamilyText}>
+                  Aún no tienes representantes vinculados
+                </Text>
+                <Text style={styles.noFamilySubtext}>
+                  Pídele a tu docente que vincule a tu familia para que puedan ver tu progreso
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Student Classroom Feature */}
         {user?.role === 'nino' && (
           <FeatureCard
@@ -353,6 +439,31 @@ export default function HomeScreen() {
             }}
           />
           
+          {/* 🆕 ACTUALIZADO: Característica de progreso familiar */}
+          <FeatureCard
+            title="Progreso Familiar"
+            description={parentInfo.hasParents 
+              ? `${parentInfo.parentCount} representante${parentInfo.parentCount > 1 ? 's' : ''} puede${parentInfo.parentCount > 1 ? 'n' : ''} ver tu progreso` 
+              : "Pide a tu docente que vincule a tu familia"}
+            icon={parentInfo.hasParents ? "family-restroom" : "person-add"}
+            color={parentInfo.hasParents ? "#4CAF50" : "#FF9800"}
+            onPress={() => {
+              if (parentInfo.hasParents) {
+                Alert.alert(
+                  'Tu Familia 👨‍👩‍👧‍👦',
+                  `Tienes ${parentInfo.parentCount} representante${parentInfo.parentCount > 1 ? 's' : ''} vinculado${parentInfo.parentCount > 1 ? 's' : ''}.\n\n${parentInfo.primaryParent ? `Representante principal: ${parentInfo.primaryParent.name}` : ''}\n\n${parentInfo.canViewProgress ? '✅ Pueden ver tu progreso' : '❌ No pueden ver tu progreso'}`,
+                  [{ text: 'Entendido' }]
+                );
+              } else {
+                Alert.alert(
+                  'Sin Familia Vinculada',
+                  'Aún no tienes representantes vinculados. Pídele a tu docente que agregue a tu familia para que puedan seguir tu progreso académico.',
+                  [{ text: 'Entendido' }]
+                );
+              }
+            }}
+          />
+          
           <FeatureCard
             title="Múltiples Niveles"
             description="Juegos adaptados a diferentes niveles de dificultad"
@@ -370,7 +481,21 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Stats Section for Authenticated Users */}
+        {/* 🆕 MOTIVACIÓN FAMILIAR */}
+        {parentInfo.hasParents && user?.role === 'nino' && (
+          <View style={styles.motivationSection}>
+            <View style={styles.motivationCard}>
+              <MaterialIcons name="favorite" size={32} color="#E91E63" />
+              <Text style={styles.motivationTitle}>¡Tu familia te apoya!</Text>
+              <Text style={styles.motivationText}>
+                {parentInfo.primaryParent?.name} y {parentInfo.parentCount > 1 ? 'otros representantes' : 'tu familia'} pueden ver tu progreso. 
+                ¡Sigue esforzándote para hacer que se sientan orgullosos!
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* 🆕 ACTUALIZADO: Stats Section for Authenticated Users */}
         {isAuthenticated && (
           <View style={styles.statsSection}>
             <Text style={styles.sectionTitle}>📊 Tu Progreso</Text>
@@ -392,6 +517,22 @@ export default function HomeScreen() {
                 <Text style={styles.statLabel}>Racha Actual</Text>
                 <Text style={styles.statValue}>0</Text>
               </View>
+              
+              {/* 🆕 NUEVO: Estadística de familia */}
+              {user?.role === 'nino' && (
+                <>
+                  <View style={styles.statDivider} />
+                  <View style={styles.statItem}>
+                    <MaterialIcons 
+                      name="family-restroom" 
+                      size={24} 
+                      color={parentInfo.hasParents ? "#4CAF50" : "#CCC"} 
+                    />
+                    <Text style={styles.statLabel}>Familia</Text>
+                    <Text style={styles.statValue}>{parentInfo.parentCount}</Text>
+                  </View>
+                </>
+              )}
             </View>
           </View>
         )}
@@ -531,6 +672,122 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  // 🆕 NUEVOS ESTILOS PARA INFORMACIÓN FAMILIAR
+  familyInfoCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  familyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  familyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  familyContent: {
+    gap: 8,
+  },
+  familyText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  primaryParentInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF9C4',
+    padding: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  primaryParentText: {
+    fontSize: 12,
+    color: '#E65100',
+    fontWeight: '500',
+  },
+  familyPermissions: {
+    marginTop: 4,
+  },
+  permissionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  permissionText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  familyEncouragement: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
+    backgroundColor: '#E8F5E8',
+    padding: 8,
+    borderRadius: 8,
+  },
+  noFamilyContent: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  noFamilyText: {
+    fontSize: 14,
+    color: '#FF9800',
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  noFamilySubtext: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  motivationSection: {
+    marginBottom: 30,
+  },
+  motivationCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: '#E91E63',
+  },
+  motivationTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#E91E63',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  motivationText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   section: {
     marginBottom: 30,

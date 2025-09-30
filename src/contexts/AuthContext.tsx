@@ -139,6 +139,13 @@ interface AuthContextType {
   getClassroomStudents: (classroomId: number) => Promise<{ success: boolean; students?: Student[]; error?: string }>;
   getMyChildren: () => Promise<{ success: boolean; children?: Student[]; error?: string }>;
   getTeacherDashboard: () => Promise<{ success: boolean; dashboard?: TeacherDashboard; error?: string }>;
+
+  // 🆕 NUEVOS MÉTODOS PARA REPRESENTANTES
+  searchParent: (email?: string, name?: string) => Promise<{ success: boolean; parents?: any[]; error?: string }>;
+  getStudentParents: (studentId: number) => Promise<{ success: boolean; parents?: any[]; error?: string }>;
+  updateParentChildRelation: (studentId: number, parentId: number, relationData: any) => Promise<{ success: boolean; message?: string; error?: string }>;
+  removeParentChildRelation: (studentId: number, parentId: number) => Promise<{ success: boolean; message?: string; error?: string }>;
+  parentLinkWithChild: (studentEmail: string, relationshipType?: string, phone?: string) => Promise<{ success: boolean; message?: string; student?: any; error?: string }>;
   
   // 🆕 NUEVA FUNCIÓN PARA DEBUG
   testBackendConnection: () => Promise<{ success: boolean; data?: any; error?: string }>;
@@ -666,6 +673,135 @@ const toggleTitanicWordStatus = async (id: string) => {
   }
 };
 
+const searchParent = async (email?: string, name?: string) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      parents?: any[];
+      error?: string;
+    }>('/users/search-parent', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ email, name }),
+    });
+
+    return data;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+const getStudentParents = async (studentId: number) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      parents?: any[];
+      error?: string;
+    }>(`/students/${studentId}/parents`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return data;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+const updateParentChildRelation = async (studentId: number, parentId: number, relationData: any) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>(`/students/${studentId}/parents/${parentId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(relationData),
+    });
+
+    return data;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+const removeParentChildRelation = async (studentId: number, parentId: number) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>(`/students/${studentId}/parents/${parentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return data;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+const parentLinkWithChild = async (studentEmail: string, relationshipType?: string, phone?: string) => {
+  if (!token) return { success: false, error: 'No autenticado' };
+
+  try {
+    const data = await makeApiRequest<{
+      success: boolean;
+      message?: string;
+      student?: any;
+      is_primary?: boolean;
+      error?: string;
+    }>('/parent/link-child', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ 
+        student_email: studentEmail, 
+        relationship_type: relationshipType,
+        phone 
+      }),
+    });
+
+    return data;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error de conexión' 
+    };
+  }
+};
+
+
   const getActiveTitanicWords = async (difficulty: number) => {
     try {
       console.log('🎮 Obteniendo palabras del Titanic, dificultad:', difficulty);
@@ -882,6 +1018,11 @@ const toggleTitanicWordStatus = async (id: string) => {
       getClassroomStudents,
       getMyChildren,
       getTeacherDashboard,
+      searchParent,
+      getStudentParents,
+      updateParentChildRelation,
+      removeParentChildRelation,
+      parentLinkWithChild,
 
       // 🆕 NUEVA FUNCIÓN PARA DEBUG
       // Estados útiles

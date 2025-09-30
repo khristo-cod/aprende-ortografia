@@ -1,4 +1,4 @@
-// app/(tabs)/parent-dashboard.tsx - Dashboard de Representantes
+// app/(tabs)/parent-dashboard.tsx - Dashboard de Representantes ACTUALIZADO
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -16,8 +16,17 @@ import {
 } from 'react-native';
 import { Student, useAuth } from '../../src/contexts/AuthContext';
 
+// Interfaz extendida para estudiantes con información de relación familiar
+interface StudentWithRelationship extends Student {
+  relationship_type?: string;
+  is_primary?: boolean;
+  can_view_progress?: boolean;
+  can_receive_notifications?: boolean;
+  emergency_contact?: boolean;
+}
+
 interface ChildCardProps {
-  child: Student;
+  child: StudentWithRelationship;
   onViewProgress: () => void;
 }
 
@@ -49,6 +58,20 @@ const ChildCard: React.FC<ChildCardProps> = ({ child, onViewProgress }) => {
     return date.toLocaleDateString('es-ES');
   };
 
+  // Función para obtener icono según tipo de relación
+  const getRelationshipIcon = (type: string): string => {
+    switch (type) {
+      case 'padre': return '👨';
+      case 'madre': return '👩';
+      case 'abuelo': return '👴';
+      case 'abuela': return '👵';
+      case 'tio': return '👨‍🦳';
+      case 'tia': return '👩‍🦳';
+      case 'tutor': return '⚖️';
+      default: return '👤';
+    }
+  };
+
   return (
     <View style={styles.childCard}>
       <View style={styles.childHeader}>
@@ -63,6 +86,44 @@ const ChildCard: React.FC<ChildCardProps> = ({ child, onViewProgress }) => {
           <Text style={styles.lastActivity}>
             Última actividad: {formatDate(child.last_activity)}
           </Text>
+          
+          {/* Mostrar información de vinculación */}
+          {child.relationship_type && (
+            <View style={styles.relationshipInfo}>
+              <Text style={styles.relationshipText}>
+                {getRelationshipIcon(child.relationship_type)} Eres su {child.relationship_type}
+              </Text>
+              {child.is_primary && (
+                <View style={styles.primaryIndicator}>
+                  <Text style={styles.primaryText}>Principal</Text>
+                </View>
+              )}
+            </View>
+          )}
+          
+          {/* Mostrar permisos */}
+          {(child.can_view_progress || child.can_receive_notifications || child.emergency_contact) && (
+            <View style={styles.permissionsRow}>
+              {child.can_view_progress && (
+                <View style={styles.permissionBadge}>
+                  <MaterialIcons name="visibility" size={12} color="#4CAF50" />
+                  <Text style={styles.permissionText}>Ver progreso</Text>
+                </View>
+              )}
+              {child.can_receive_notifications && (
+                <View style={styles.permissionBadge}>
+                  <MaterialIcons name="notifications" size={12} color="#FF9800" />
+                  <Text style={styles.permissionText}>Notificaciones</Text>
+                </View>
+              )}
+              {child.emergency_contact && (
+                <View style={[styles.permissionBadge, { backgroundColor: '#FFEBEE' }]}>
+                  <MaterialIcons name="emergency" size={12} color="#F44336" />
+                  <Text style={[styles.permissionText, { color: '#F44336' }]}>Emergencia</Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </View>
 
@@ -126,7 +187,7 @@ export default function ParentDashboard() {
     getMyChildren 
   } = useAuth();
 
-  const [children, setChildren] = useState<Student[]>([]);
+  const [children, setChildren] = useState<StudentWithRelationship[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -157,7 +218,7 @@ export default function ParentDashboard() {
     }
   ];
 
-    const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
       if (Platform.OS === 'web') {
         const confirmed = window.confirm(
@@ -213,7 +274,8 @@ export default function ParentDashboard() {
       const result = await getMyChildren();
       
       if (result.success && result.children) {
-        setChildren(result.children);
+        // Cast the children to include relationship properties
+        setChildren(result.children as StudentWithRelationship[]);
       } else {
         console.error('Error cargando hijos:', result.error);
         if (result.error) {
@@ -234,7 +296,7 @@ export default function ParentDashboard() {
     setRefreshing(false);
   };
 
-  const handleViewChildProgress = (child: Student) => {
+  const handleViewChildProgress = (child: StudentWithRelationship) => {
     router.push(`/(tabs)/child-progress?id=${child.id}&name=${encodeURIComponent(child.name)}` as any);
   };
 
@@ -278,12 +340,21 @@ export default function ParentDashboard() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header con botón de vinculación rápida */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.welcomeText}>Hola, {user?.name}</Text>
             <Text style={styles.roleText}>Seguimiento del Progreso</Text>
           </View>
+          
+          {/* Botón de vinculación rápida */}
+          <TouchableOpacity 
+            style={styles.quickLinkButton}
+            onPress={() => router.push('/(tabs)/parent-link-child' as any)}
+          >
+            <MaterialIcons name="add-link" size={24} color="#4CAF50" />
+          </TouchableOpacity>
+          
           <TouchableOpacity 
             style={styles.notificationButton}
             onPress={() => Alert.alert('Notificaciones', 'Próximamente: Centro de notificaciones')}
@@ -293,12 +364,58 @@ export default function ParentDashboard() {
               <Text style={styles.notificationCount}>2</Text>
             </View>
           </TouchableOpacity>
+          
           <TouchableOpacity 
             style={styles.logoutButton}
             onPress={handleLogout}
           >
             <MaterialIcons name="logout" size={24} color="#FFF" />
           </TouchableOpacity>
+        </View>
+
+        {/* Estado de vinculación */}
+        <View style={styles.linkStatusSection}>
+          <Text style={styles.sectionTitle}>Estado de Vinculación</Text>
+          <View style={styles.linkStatusCard}>
+            <View style={styles.linkStatusHeader}>
+              <MaterialIcons name="family-restroom" size={32} color="#4CAF50" />
+              <View style={styles.linkStatusInfo}>
+                <Text style={styles.linkStatusTitle}>
+                  {children.length === 0 ? '¡Conecta con tus hijos!' : `${children.length} hijo${children.length > 1 ? 's' : ''} vinculado${children.length > 1 ? 's' : ''}`}
+                </Text>
+                <Text style={styles.linkStatusSubtitle}>
+                  {children.length === 0 
+                    ? 'Establece la conexión familiar para ver su progreso'
+                    : 'Puedes seguir el progreso académico de tus hijos'
+                  }
+                </Text>
+              </View>
+            </View>
+            
+            {children.length === 0 && (
+              <TouchableOpacity 
+                style={styles.linkNowButton}
+                onPress={() => router.push('/(tabs)/parent-link-child' as any)}
+              >
+                <MaterialIcons name="link" size={20} color="#FFF" />
+                <Text style={styles.linkNowText}>Vincular Ahora</Text>
+              </TouchableOpacity>
+            )}
+            
+            {children.length > 0 && (
+              <View style={styles.linkSummary}>
+                <Text style={styles.linkSummaryText}>
+                  • {children.filter(c => c.is_primary || false).length} relación{children.filter(c => c.is_primary || false).length !== 1 ? 'es' : ''} principal{children.filter(c => c.is_primary || false).length !== 1 ? 'es' : ''}
+                </Text>
+                <Text style={styles.linkSummaryText}>
+                  • {children.filter(c => c.can_view_progress || false).length} permiso{children.filter(c => c.can_view_progress || false).length !== 1 ? 's' : ''} de progreso
+                </Text>
+                <Text style={styles.linkSummaryText}>
+                  • {children.filter(c => c.emergency_contact || false).length} contacto{children.filter(c => c.emergency_contact || false).length !== 1 ? 's' : ''} de emergencia
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Mis hijos */}
@@ -343,6 +460,16 @@ export default function ParentDashboard() {
         <View style={styles.linksSection}>
           <Text style={styles.sectionTitle}>Recursos Útiles</Text>
           <View style={styles.linksList}>
+            {/* Opción para vincular hijos */}
+            <TouchableOpacity 
+              style={[styles.linkCard, { backgroundColor: '#E8F5E8' }]}
+              onPress={() => router.push('/(tabs)/parent-link-child' as any)}
+            >
+              <MaterialIcons name="link" size={20} color="#4CAF50" />
+              <Text style={styles.linkText}>Vincular con Hijo/a</Text>
+              <MaterialIcons name="chevron-right" size={16} color="#4CAF50" />
+            </TouchableOpacity>
+
             <TouchableOpacity 
               style={styles.linkCard}
               onPress={() => Alert.alert('Comunicación', 'Próximamente: Chat con docentes')}
@@ -443,9 +570,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FF9800',
   },
+  quickLinkButton: {
+    backgroundColor: '#E8F5E8',
+    padding: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
   notificationButton: {
     position: 'relative',
     padding: 4,
+    marginRight: 8,
   },
   notificationBadge: {
     position: 'absolute',
@@ -463,49 +597,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  summarySection: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#E65100',
-    marginBottom: 12,
-    marginHorizontal: 20,
-  },
-  summaryCard: {
-    backgroundColor: '#FFF',
-    marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  summaryStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  summaryStatItem: {
-    alignItems: 'center',
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FF9800',
-    marginBottom: 4,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  childrenSection: {
-    marginBottom: 20,
-  },
-   logoutButton: {
+  logoutButton: {
     backgroundColor: '#F44336',
     padding: 12,
     borderRadius: 20,
@@ -514,6 +606,75 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+  },
+  linkStatusSection: {
+    marginBottom: 20,
+  },
+  linkStatusCard: {
+    backgroundColor: '#FFF',
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  linkStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  linkStatusInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  linkStatusTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  linkStatusSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  linkNowButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  linkNowText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  linkSummary: {
+    backgroundColor: '#F8F9FA',
+    padding: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  linkSummaryText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#E65100',
+    marginBottom: 12,
+    marginHorizontal: 20,
+  },
+  childrenSection: {
+    marginBottom: 20,
   },
   childCard: {
     backgroundColor: '#FFF',
@@ -558,6 +719,48 @@ const styles = StyleSheet.create({
   lastActivity: {
     fontSize: 12,
     color: '#999',
+  },
+  relationshipInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 8,
+  },
+  relationshipText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  primaryIndicator: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  primaryText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  permissionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6,
+    gap: 4,
+  },
+  permissionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 2,
+  },
+  permissionText: {
+    fontSize: 10,
+    color: '#4CAF50',
+    fontWeight: '500',
   },
   progressSection: {
     borderTopWidth: 1,

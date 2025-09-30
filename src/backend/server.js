@@ -1214,7 +1214,295 @@ app.get('/api/classrooms/:classroomId/students', authenticateToken, async (req, 
 
 // =================== RUTAS DE REPRESENTANTES ===================
 
-// Asociar representante con estudiante
+// =================== 1. MEJORAS AL BACKEND ===================
+// Agregar estas rutas al src/backend/server.js
+
+// 🆕 NUEVO: Búsqueda de representantes por email/nombre
+app.post('/api/users/search-parent', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'docente') {
+      return res.status(403).json({ error: 'Solo docentes pueden buscar representantes' });
+    }
+
+    const { email, name } = req.body;
+
+    if (!email && !name) {
+      return res.status(400).json({ error: 'Email o nombre es requerido' });
+    }
+
+    let query = `
+      SELECT id, name, email, created_at 
+      FROM users 
+      WHERE role = 'representante' AND active = 1
+    `;
+    const params = [];
+
+    if (email) {
+      query += ` AND email = ?`;
+      params.push(email.trim().toLowerCase());
+    } else if (name) {
+      query += ` AND name LIKE ?`;
+      params.push(`%${name.trim()}%`);
+    }
+
+    const parents = await allQuery(query, params);
+
+    if (parents.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'No se encontraron representantes con esos criterios' 
+      });
+    }
+
+    res.json({
+      success: true,
+      parents: parents
+    });
+  } catch (error) {
+    console.error('Error buscando representante:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 🆕 MEJORADO: Obtener representantes de un estudiante
+app.get('/api/students/:studentId/parents', authenticateToken, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    // Verificar permisos
+    let authorized = false;
+    
+    if (req.user.role === 'docente') {
+      // Verificar que el estudiante esté en una aula del docente
+      const studentInMyClassroom = await getQuery(`
+        SELECT se.* FROM student_enrollments se
+        JOIN classrooms c ON se.classroom_id = c.id
+        WHERE se.student_id = ? AND c.teacher_id = ? AND se.status = 'active'
+      `, [studentId, req.user.id]);
+      authorized = !!studentInMyClassroom;
+    } else if (req.user.role === 'representante') {
+      // Verificar que es representante del estudiante
+      const isMyChild = await getQuery(`
+        SELECT id FROM parent_child_relationships 
+        WHERE parent_id = ? AND child_id = ?
+      `, [req.user.id, studentId]);
+      authorized = !!isMyChild;
+    } else if (req.user.role === 'nino' && req.user.id === parseInt(studentId)) {
+      authorized = true; // El estudiante puede ver sus propios representantes
+    }
+
+    if (!authorized) {
+      return res.status(403).json({ error: 'No tienes permisos para ver esta información' });
+    }
+
+    const parents = await allQuery(`
+      SELECT 
+        u.id, u.name, u.email,
+        pcr.relationship_type, pcr.is_primary, pcr.phone,
+        pcr.can_view_progress, pcr.can_receive_notifications,
+        pcr.emergency_contact, pcr.created_at as relationship_date
+      FROM parent_child_relationships pcr
+      JOIN users u ON pcr.parent_id = u.id
+      WHERE pcr.child_id = ? AND u.role = 'representante' AND u.active = 1
+      ORDER BY pcr.is_primary DESC, pcr.created_at ASC
+    `, [studentId]);
+
+    res.json({
+      success: true,
+      parents
+    });
+  } catch (error) {
+    console.error('Error obteniendo representantes:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 🆕 NUEVO: Actualizar relación representante-estudiante
+app.put('/api/students/:studentId/parents/:parentId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'docente') {
+      return res.status(403).json({ error: 'Solo docentes pueden actualizar relaciones' });
+    }
+
+    const { studentId, parentId } = req.params;
+    const { 
+      relationship_type, 
+      is_primary, 
+      phone, 
+      can_view_progress,
+      can_receive_notifications,
+      emergency_contact 
+    } = req.body;
+
+    // Verificar que la relación existe
+    const existingRelation = await getQuery(`
+      SELECT id FROM parent_child_relationships 
+      WHERE parent_id = ? AND child_id = ?
+    `, [parentId, studentId]);
+
+    if (!existingRelation) {
+      return res.status(404).json({ error: 'Relación no encontrada' });
+    }
+
+    // Si se está marcando como principal, quitar el flag de otros
+    if (is_primary) {
+      await runQuery(`
+        UPDATE parent_child_relationships 
+        SET is_primary = 0 
+        WHERE child_id = ? AND parent_id != ?
+      `, [studentId, parentId]);
+    }
+
+    // Actualizar la relación
+    await runQuery(`
+      UPDATE parent_child_relationships 
+      SET 
+        relationship_type = COALESCE(?, relationship_type),
+        is_primary = COALESCE(?, is_primary),
+        phone = COALESCE(?, phone),
+        can_view_progress = COALESCE(?, can_view_progress),
+        can_receive_notifications = COALESCE(?, can_receive_notifications),
+        emergency_contact = COALESCE(?, emergency_contact)
+      WHERE parent_id = ? AND child_id = ?
+    `, [
+      relationship_type, is_primary, phone, 
+      can_view_progress, can_receive_notifications, emergency_contact,
+      parentId, studentId
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Relación actualizada exitosamente'
+    });
+  } catch (error) {
+    console.error('Error actualizando relación:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 🆕 NUEVO: Eliminar relación representante-estudiante
+app.delete('/api/students/:studentId/parents/:parentId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'docente') {
+      return res.status(403).json({ error: 'Solo docentes pueden eliminar relaciones' });
+    }
+
+    const { studentId, parentId } = req.params;
+
+    // Verificar que la relación existe
+    const existingRelation = await getQuery(`
+      SELECT pcr.*, u.name as parent_name, s.name as student_name
+      FROM parent_child_relationships pcr
+      JOIN users u ON pcr.parent_id = u.id
+      JOIN users s ON pcr.child_id = s.id
+      WHERE pcr.parent_id = ? AND pcr.child_id = ?
+    `, [parentId, studentId]);
+
+    if (!existingRelation) {
+      return res.status(404).json({ error: 'Relación no encontrada' });
+    }
+
+    // Eliminar la relación
+    await runQuery(`
+      DELETE FROM parent_child_relationships 
+      WHERE parent_id = ? AND child_id = ?
+    `, [parentId, studentId]);
+
+    res.json({
+      success: true,
+      message: `Relación eliminada: ${existingRelation.parent_name} ya no es representante de ${existingRelation.student_name}`
+    });
+  } catch (error) {
+    console.error('Error eliminando relación:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 🆕 NUEVO: Auto-vinculación de representante con estudiante (código de invitación)
+app.post('/api/parent/link-child', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'representante') {
+      return res.status(403).json({ error: 'Solo representantes pueden usar esta función' });
+    }
+
+    const { student_email, relationship_type, phone } = req.body;
+
+    if (!student_email) {
+      return res.status(400).json({ error: 'Email del estudiante es requerido' });
+    }
+
+    // Buscar estudiante
+    const student = await getQuery(`
+      SELECT id, name, email 
+      FROM users 
+      WHERE email = ? AND role = 'nino' AND active = 1
+    `, [student_email.trim().toLowerCase()]);
+
+    if (!student) {
+      return res.status(404).json({ 
+        error: 'No se encontró un estudiante con ese email' 
+      });
+    }
+
+    // Verificar si ya existe la relación
+    const existingRelation = await getQuery(`
+      SELECT id FROM parent_child_relationships 
+      WHERE parent_id = ? AND child_id = ?
+    `, [req.user.id, student.id]);
+
+    if (existingRelation) {
+      return res.status(400).json({ 
+        error: 'Ya tienes una relación establecida con este estudiante' 
+      });
+    }
+
+    // Verificar límite de representantes por estudiante (máximo 2)
+    const currentParents = await getQuery(`
+      SELECT COUNT(*) as count 
+      FROM parent_child_relationships 
+      WHERE child_id = ?
+    `, [student.id]);
+
+    if (currentParents.count >= 2) {
+      return res.status(400).json({ 
+        error: 'Este estudiante ya tiene el máximo de representantes permitidos (2)' 
+      });
+    }
+
+    // Determinar si es representante principal
+    const is_primary = currentParents.count === 0;
+
+    // Crear la relación
+    await runQuery(`
+      INSERT INTO parent_child_relationships 
+      (parent_id, child_id, relationship_type, is_primary, phone) 
+      VALUES (?, ?, ?, ?, ?)
+    `, [
+      req.user.id, 
+      student.id, 
+      relationship_type || 'representante', 
+      is_primary,
+      phone
+    ]);
+
+    res.json({
+      success: true,
+      message: `Te has vinculado exitosamente con ${student.name}`,
+      student: {
+        id: student.id,
+        name: student.name,
+        email: student.email
+      },
+      is_primary
+    });
+  } catch (error) {
+    console.error('Error en auto-vinculación:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
+/* Asociar representante con estudiante
 app.post('/api/students/:studentId/parents', authenticateToken, async (req, res) => {
   try {
     if (req.user.role !== 'docente') {
@@ -1304,7 +1592,7 @@ app.get('/api/parents/my-children', authenticateToken, async (req, res) => {
     console.error('Error obteniendo hijos:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
-});
+});*/
 
 // =================== RUTAS DE PALABRAS CON ALCANCE ===================
 

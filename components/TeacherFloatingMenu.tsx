@@ -3,11 +3,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Animated,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface FloatingActionProps {
@@ -44,6 +45,31 @@ export default function TeacherFloatingMenu() {
     setIsOpen(!isOpen);
   };
 
+  const showParentManagementGuide = () => {
+    Alert.alert(
+      'Guía: Gestión de Representantes 📚',
+      `Como docente puedes:
+
+• Vincular hasta 2 representantes por estudiante
+• Configurar permisos específicos para cada uno
+• Designar representante principal
+• Gestionar contactos de emergencia
+
+Pasos:
+1. Ve a "Mis Aulas"
+2. Selecciona estudiantes
+3. Toca el ícono de familia
+4. Busca y vincula representantes`,
+      [
+        { text: 'Entendido' },
+        { 
+          text: 'Ir a Aulas', 
+          onPress: () => router.push('/(tabs)/classroom-management' as any) 
+        }
+      ]
+    );
+  };
+
   const handleAction = (action: string) => {
     toggleMenu(); // Cerrar el menú primero
     
@@ -58,6 +84,26 @@ export default function TeacherFloatingMenu() {
         case 'reports':
           router.push('/(tabs)/teacher-reports' as any);
           break;
+        
+        // 🆕 NUEVA ACCIÓN: Gestionar representantes
+        case 'manage-parents':
+          Alert.alert(
+            'Gestionar Representantes 👨‍👩‍👧‍👦',
+            'Selecciona cómo quieres gestionar las relaciones familiares:',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Ver mis Aulas',
+                onPress: () => router.push('/(tabs)/classroom-management' as any)
+              },
+              {
+                text: 'Guía Rápida',
+                onPress: () => showParentManagementGuide()
+              }
+            ]
+          );
+          break;
+          
         case 'settings':
           // Implementar configuración más adelante
           console.log('Abrir configuración');
@@ -103,7 +149,7 @@ export default function TeacherFloatingMenu() {
             {
               transform: [
                 { scale: actionScale },
-                { translateY: Animated.multiply(actionTranslateY, 4) }
+                { translateY: Animated.multiply(actionTranslateY, 5) }
               ],
             },
           ]}
@@ -113,6 +159,26 @@ export default function TeacherFloatingMenu() {
             label="Configuración"
             color="#9E9E9E"
             onPress={() => handleAction('settings')}
+          />
+        </Animated.View>
+
+        {/* Gestionar Representantes - NUEVO */}
+        <Animated.View
+          style={[
+            styles.actionContainer,
+            {
+              transform: [
+                { scale: actionScale },
+                { translateY: Animated.multiply(actionTranslateY, 4) }
+              ],
+            },
+          ]}
+        >
+          <FloatingAction
+            icon="family-restroom"
+            label="Representantes"
+            color="#2196F3"
+            onPress={() => handleAction('manage-parents')}
           />
         </Animated.View>
 

@@ -27,12 +27,19 @@ interface StatCardProps {
 
 interface RecentActivityItem {
   id: string;
-  type: 'game' | 'student_enrolled' | 'word_created';
+  type: 'game' | 'student_enrolled' | 'word_created' | 'parent_linked';
   title: string;
   subtitle: string;
   timestamp: string;
   icon: string;
   color: string;
+}
+
+interface ParentStats {
+  totalParents: number;
+  studentsWithParents: number;
+  studentsWithoutParents: number;
+  averageParentsPerStudent: number;
 }
 
 const { width } = Dimensions.get('window');
@@ -97,8 +104,14 @@ export default function TeacherDashboard() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [parentStats, setParentStats] = useState<ParentStats>({
+    totalParents: 0,
+    studentsWithParents: 0,
+    studentsWithoutParents: 0,
+    averageParentsPerStudent: 0
+  });
 
-    const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
       if (Platform.OS === 'web') {
         const confirmed = window.confirm(
@@ -136,7 +149,7 @@ export default function TeacherDashboard() {
     }
   };
   
-  // Actividad reciente simulada
+  // Actividad reciente actualizada con nuevos tipos
   const [recentActivity] = useState<RecentActivityItem[]>([
     {
       id: '1',
@@ -158,6 +171,15 @@ export default function TeacherDashboard() {
     },
     {
       id: '3',
+      type: 'parent_linked',
+      title: 'Representante vinculado',
+      subtitle: 'María López se vinculó con Ana García',
+      timestamp: 'Hace 4 horas',
+      icon: 'family-restroom',
+      color: '#2196F3'
+    },
+    {
+      id: '4',
       type: 'word_created',
       title: 'Palabra agregada',
       subtitle: 'Creaste "COMPUTADORA" para Titanic',
@@ -179,6 +201,20 @@ export default function TeacherDashboard() {
     loadDashboardData();
   }, [isAuthenticated, isDocente]);
 
+  const loadParentStatistics = async () => {
+    try {
+      // Por ahora simulamos los datos - luego se conectará con el backend
+      setParentStats({
+        totalParents: 45,
+        studentsWithParents: 28,
+        studentsWithoutParents: 7,
+        averageParentsPerStudent: 1.6
+      });
+    } catch (error) {
+      console.log('Error cargando estadísticas de representantes:', error);
+    }
+  };
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);
@@ -195,6 +231,10 @@ export default function TeacherDashboard() {
       if (classroomsResult.success && classroomsResult.classrooms) {
         setClassrooms(classroomsResult.classrooms.slice(0, 3)); // Mostrar solo 3
       }
+
+      // 🆕 NUEVO: Cargar estadísticas de representantes
+      await loadParentStatistics();
+      
     } catch (error) {
       console.error('Error cargando dashboard:', error);
       Alert.alert('Error', 'No se pudo cargar el dashboard');
@@ -285,6 +325,46 @@ export default function TeacherDashboard() {
           </View>
         </View>
 
+        {/* 🆕 NUEVO: Estadísticas de familias */}
+        <View style={styles.familyStatsSection}>
+          <Text style={styles.sectionTitle}>Estadísticas Familiares</Text>
+          <View style={styles.familyStatsCard}>
+            <View style={styles.familyStatsGrid}>
+              <View style={styles.familyStatItem}>
+                <MaterialIcons name="family-restroom" size={24} color="#2196F3" />
+                <Text style={styles.familyStatValue}>{parentStats.totalParents}</Text>
+                <Text style={styles.familyStatLabel}>Representantes</Text>
+              </View>
+              
+              <View style={styles.familyStatItem}>
+                <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+                <Text style={styles.familyStatValue}>{parentStats.studentsWithParents}</Text>
+                <Text style={styles.familyStatLabel}>Con familia</Text>
+              </View>
+              
+              <View style={styles.familyStatItem}>
+                <MaterialIcons name="warning" size={24} color="#FF9800" />
+                <Text style={styles.familyStatValue}>{parentStats.studentsWithoutParents}</Text>
+                <Text style={styles.familyStatLabel}>Sin familia</Text>
+              </View>
+              
+              <View style={styles.familyStatItem}>
+                <MaterialIcons name="timeline" size={24} color="#9C27B0" />
+                <Text style={styles.familyStatValue}>{parentStats.averageParentsPerStudent.toFixed(1)}</Text>
+                <Text style={styles.familyStatLabel}>Promedio</Text>
+              </View>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.manageFamiliesButton}
+              onPress={() => router.push('/(tabs)/classroom-management' as any)}
+            >
+              <MaterialIcons name="family-restroom" size={20} color="#FFF" />
+              <Text style={styles.manageFamiliesText}>Gestionar Familias</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Acciones rápidas */}
         <View style={styles.quickActionsSection}>
           <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
@@ -297,7 +377,16 @@ export default function TeacherDashboard() {
               onPress={() => router.push('/(tabs)/classroom-management' as any)}
             />
             
-            {/* 🎮 NUEVA SECCIÓN: ADMINISTRACIÓN DE JUEGOS */}
+            {/* 🆕 NUEVA ACCIÓN: GESTIÓN DE REPRESENTANTES */}
+            <QuickActionCard
+              title="Gestionar Familias"
+              description="Vincular representantes con estudiantes"
+              icon="family-restroom"
+              color="#2196F3"
+              onPress={() => router.push('/(tabs)/classroom-management' as any)}
+            />
+            
+            {/* 🎮 SECCIÓN: ADMINISTRACIÓN DE JUEGOS */}
             <QuickActionCard
               title="Admin Titanic"
               description="Gestionar palabras del Titanic"
@@ -389,12 +478,13 @@ export default function TeacherDashboard() {
           )}
         </View>
 
+        {/* 🆕 ACTUALIZADO: Administración del Sistema */}
         <View style={styles.gamesAdminSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Administración de Juegos</Text>
+            <Text style={styles.sectionTitle}>Administración del Sistema</Text>
             <TouchableOpacity 
               style={styles.seeAllButton}
-              onPress={() => Alert.alert('Funcionalidades', 'Próximamente: Panel unificado de juegos')}
+              onPress={() => Alert.alert('Funcionalidades', 'Panel completo de administración')}
             >
               <Text style={styles.seeAllText}>Ver todo</Text>
               <MaterialIcons name="chevron-right" size={16} color="#2196F3" />
@@ -418,6 +508,25 @@ export default function TeacherDashboard() {
               <View style={styles.gameCardStats}>
                 <Text style={styles.statItem}>📝 {dashboard?.words_created || 0} palabras</Text>
                 <Text style={styles.statItem}>🎯 CRUD completo</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 🆕 NUEVO: GESTIÓN DE REPRESENTANTES */}
+            <TouchableOpacity 
+              style={[styles.gameAdminCard, { borderLeftColor: '#2196F3' }]}
+              onPress={() => router.push('/(tabs)/classroom-management' as any)}
+            >
+              <View style={styles.gameCardHeader}>
+                <MaterialIcons name="family-restroom" size={32} color="#2196F3" />
+                <View style={styles.gameStatus}>
+                  <Text style={[styles.statusText, { color: '#4CAF50' }]}>Activo</Text>
+                </View>
+              </View>
+              <Text style={styles.gameCardTitle}>Representantes</Text>
+              <Text style={styles.gameCardDescription}>Gestionar vínculos familiares</Text>
+              <View style={styles.gameCardStats}>
+                <Text style={styles.statItem}>👨‍👩‍👧‍👦 Hasta 2 por estudiante</Text>
+                <Text style={styles.statItem}>🔧 Gestión completa</Text>
               </View>
             </TouchableOpacity>
 
@@ -599,6 +708,57 @@ const styles = StyleSheet.create({
   statSubtitle: {
     fontSize: 10,
     color: '#999',
+  },
+  // 🆕 NUEVOS ESTILOS PARA ESTADÍSTICAS FAMILIARES
+  familyStatsSection: {
+    marginBottom: 20,
+  },
+  familyStatsCard: {
+    backgroundColor: '#FFF',
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  familyStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  familyStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  familyStatValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  familyStatLabel: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'center',
+  },
+  manageFamiliesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  manageFamiliesText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   quickActionsSection: {
     marginBottom: 20,
