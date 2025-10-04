@@ -1,7 +1,7 @@
 // src/contexts/AuthContext.tsx - VERSIÓN CORREGIDA
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { initializeApiUrl, makeApiRequest } from '../config/api';
+import { getApiUrl, makeApiRequest } from '../config/api';
 
 // Tipos base existentes (mantener todos los tipos que ya tienes)
 interface User {
@@ -169,21 +169,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [token, setToken] = useState<string | null>(null);
-  const [API_BASE_URL, setApiBaseUrl] = useState<string>('http://localhost:3001/api');
+  const [API_BASE_URL] = useState<string>(getApiUrl());
 
-useEffect(() => {
-    initializeApi();
-  }, []);
-
-  const initializeApi = async () => {
-    try {
-      const url = await initializeApiUrl();
-      setApiBaseUrl(url);
-      console.log('🔧 API URL inicializada:', url);
-    } catch (error) {
-      console.error('🚨 Error inicializando API:', error);
-    }
-  };
 
   // Verificar token al iniciar la app
   useEffect(() => {
